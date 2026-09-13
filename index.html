@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eagle Mode Flat UI Explorer</title>
+
+    <!-- Tailwind CSS & Google Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Tone.js for subtle sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #viewport-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+        }
+
+        #viewport-canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Glassmorphism overlays */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+    </style>
+</head>
+<body class="text-slate-200">
+
+    <!-- Main Rendering Canvas -->
+    <canvas id="viewport-canvas"></canvas>
+
+    <!-- HUD Overlay Top Bar -->
+    <header class="fixed top-4 left-4 right-4 flex justify-between items-center z-20 pointer-events-none">
+        <div class="glass-panel px-4 py-2.5 rounded-xl flex items-center space-x-3 pointer-events-auto shadow-xl">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
+                🦅
+            </div>
+            <div>
+                <h1 class="text-sm font-semibold text-slate-100 leading-tight">Eagle Mode Explorer</h1>
+                <p class="text-xs text-slate-400 font-mono" id="status-text">Deep Infinite 16:9 Viewport</p>
+            </div>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="glass-panel px-3 py-2 rounded-xl flex items-center space-x-2 pointer-events-auto shadow-xl">
+            <!-- Hidden native file input for local folder selection -->
+            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden" onchange="handleFolderSelect(event)">
+            
+            <button onclick="triggerFolderSelect()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all shadow-md flex items-center space-x-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span>Open Folder(s)</span>
+            </button>
+
+            <button onclick="resetZoom()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 00-1 1m-6 0h6"></path></svg>
+                <span>Reset View</span>
+            </button>
+
+            <button onclick="toggleAudio()" id="audio-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs border border-slate-700">
+                🔊
+            </button>
+
+            <button onclick="showElectronModal()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-mono font-medium border border-blue-900/50">
+                ELECTRON
+            </button>
+        </div>
+    </header>
+
+    <!-- Minimap Radar Bottom Right -->
+    <div class="fixed bottom-4 right-4 z-20 pointer-events-none">
+        <div class="glass-panel p-2 rounded-xl pointer-events-auto shadow-2xl flex flex-col items-end">
+            <div class="text-[10px] font-mono text-slate-400 mb-1 flex justify-between w-full px-1">
+                <span>RADAR</span>
+                <span id="zoom-level-indicator">100%</span>
+            </div>
+            <canvas id="minimap-canvas" width="160" height="90" class="rounded-lg border border-slate-700/80 bg-slate-950"></canvas>
+        </div>
+    </div>
+
+    <!-- Drag & Drop Overlay Hint -->
+    <div id="drop-overlay" class="fixed inset-0 bg-blue-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center border-4 border-dashed border-blue-500 m-6 rounded-3xl opacity-0 pointer-events-none transition-opacity duration-200">
+        <svg class="w-16 h-16 text-blue-400 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <p class="text-xl font-bold text-white">Drop Folder(s) Here to Explore</p>
+        <p class="text-sm text-blue-300 mt-1">Recursively index into 16:9 flat zoom panels</p>
+    </div>
+
+    <!-- Electron Boilerplate Code Modal -->
+    <div id="electron-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-slate-700 flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-800">
+                <h3 class="text-base font-semibold text-slate-100 flex items-center space-x-2">
+                    <span>⚡ Electron Native App Integration Setup</span>
+                </h3>
+                <button onclick="hideElectronModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+            </div>
+            <div class="mt-4 overflow-y-auto custom-scrollbar space-y-4 text-xs font-mono text-slate-300">
+                <p class="text-slate-400 font-sans">Copy these 2 files into your Electron root folder to turn this explorer into a native desktop app:</p>
+                <div>
+                    <span class="text-blue-400 font-bold">1. package.json</span>
+                    <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 mt-1 text-slate-300">
+{
+  "name": "eagle-mode-flat-explorer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": { "start": "electron ." },
+  "devDependencies": { "electron": "^28.0.0" }
+}</pre>
+                </div>
+                <div>
+                    <span class="text-blue-400 font-bold">2. main.js</span>
+                    <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 mt-1 text-slate-300">
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280, height: 800,
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+  win.loadFile('index.html');
+}
+
+app.whenReady().then(createWindow);
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });</pre>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+                <button onclick="hideElectronModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('viewport-canvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimap-canvas');
+        const minimapCtx = minimapCanvas.getContext('2d');
+
+        // File Type Extensions Categorization
+        const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'];
+        const TEXT_EXTS = ['txt', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'py', 'md', 'c', 'cpp', 'h', 'hpp', 'java', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt', 'sh', 'bat', 'cmd', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'conf', 'log', 'csv', 'sql', 'env'];
+        const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'cab', 'tgz', 'iso'];
+        const BINARY_EXTS = ['exe', 'dll', 'sys', 'bin', 'dat', 'so', 'dylib', 'msi', 'com', 'drv', 'ocx', 'class', 'o', 'obj', 'elf', 'pkg', 'dmg'];
+        const VIDEO_EXTS = ['mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv'];
+        const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'];
+        const DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+        // Global State
+        const state = {
+            transform: { x: window.innerWidth / 2, y: window.innerHeight / 2, scale: 0.85 },
+            targetTransform: null,
+            isDragging: false,
+            dragStart: { x: 0, y: 0 },
+            mouse: { x: 0, y: 0 },
+            hoveredNode: null,
+            audioEnabled: false,
+            bgGridEnabled: true,
+            rootNode: null,
+            isLoadingFolder: false
+        };
+
+        // Web Audio Synthesizer (Tone.js)
+        let synth = null;
+        function initAudio() {
+            if (!synth && window.Tone) {
+                synth = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.1 }
+                }).toDestination();
+                synth.volume.value = -18;
+            }
+        }
+
+        function playSound(type) {
+            if (!state.audioEnabled || !synth) return;
+            try {
+                if (type === 'zoom') synth.triggerAttackRelease('C6', '32n');
+                else if (type === 'click') synth.triggerAttackRelease('E5', '16n');
+            } catch(e) {}
+        }
+
+        function toggleAudio() {
+            state.audioEnabled = !state.audioEnabled;
+            if (state.audioEnabled) initAudio();
+            document.getElementById('audio-btn').textContent = state.audioEnabled ? '🔊' : '🔇';
+        }
+
+        function buildFileSystemTree() {
+            // Generate deep 7-level nested filesystem tree with strict 16:9 ratio
+            const root = {
+                id: 'root',
+                name: 'System Workspace Root',
+                type: 'folder',
+                ext: '',
+                content: '',
+                children: [],
+                x: 0, y: 0, width: 1600, height: 900,
+                depth: 0
+            };
+
+            const sampleCode = `import React, { useState, useEffect } from 'react';\n\n// Eagle Mode 16:9 Renderer Component\nexport const FlatViewport = ({ nodeData }) => {\n  const [scale, setScale] = useState(1.0);\n  useEffect(() => {\n    console.log("Rendering node level:", nodeData.name);\n  }, [nodeData]);\n\n  return (\n    <div className="panel-16-9">\n      <h1>{nodeData.name}</h1>\n    </div>\n  );\n};`;
+
+            const createChildren = (parent, count, currentDepth) => {
+                if (currentDepth > 6) return;
+
+                const fileTypesPool = [
+                    'ts', 'jsx', 'json', 'py', 'md', // Text/Code
+                    'png', 'jpg', 'svg',              // Images
+                    'exe', 'dll', 'bin',              // Binaries
+                    'zip', '7z',                      // Archives
+                    'mp4', 'mp3', 'pdf'               // Media
+                ];
+
+                for (let i = 0; i < count; i++) {
+                    const isFolder = i < Math.ceil(count * 0.4);
+                    const ext = isFolder ? '' : fileTypesPool[Math.floor(Math.random() * fileTypesPool.length)];
+                    const name = isFolder ? `Module_Subdir_0${i + 1}` : `Data_Record_${i + 1}.${ext}`;
+
+                    const child = {
+                        id: `${parent.id}_${i}`,
+                        name: name,
+                        type: isFolder ? 'folder' : 'file',
+                        ext: ext,
+                        content: isFolder ? '' : (TEXT_EXTS.includes(ext) ? sampleCode : ''),
+                        children: [],
+                        x: 0, y: 0, width: 1600, height: 900,
+                        depth: currentDepth
+                    };
+
+                    if (isFolder) {
+                        createChildren(child, Math.max(3, 7 - currentDepth), currentDepth + 1);
+                    }
+                    parent.children.push(child);
+                }
+            };
+
+            createChildren(root, 6, 1);
+            layoutNodeHierarchy(root, 0, 0, 1600, 900, 0);
+            return root;
+        }
+
+        function layoutNodeHierarchy(node, x, y, width, height, depth) {
+            node.x = x;
+            node.y = y;
+            node.width = width;
+            node.height = height;
+            node.depth = depth;
+
+            if (node.type === 'folder' && node.children.length > 0) {
+                const headerH = height * 0.13;
+                const pad = Math.max(2, width * 0.012);
+
+                const contentX = x + pad;
+                const contentY = y + headerH + pad;
+                const contentW = width - pad * 2;
+                const contentH = height - headerH - pad * 2;
+
+                const count = node.children.length;
+                const targetAspect = 16 / 9;
+
+                // Find optimal grid arrangement maximizing cell size while strictly maintaining 16:9 aspect ratio
+                let bestCols = 1;
+                let bestRows = count;
+                let maxCellArea = 0;
+                let bestCellW = 0;
+                let bestCellH = 0;
+
+                for (let cols = 1; cols <= count; cols++) {
+                    const rows = Math.ceil(count / cols);
+                    
+                    let cellW = (contentW - (cols - 1) * pad) / cols;
+                    let cellH = cellW / targetAspect;
+
+                    if (rows * cellH + (rows - 1) * pad > contentH) {
+                        cellH = (contentH - (rows - 1) * pad) / rows;
+                        cellW = cellH * targetAspect;
+                    }
+
+                    if (cellW > 0 && cellH > 0) {
+                        const area = cellW * cellH;
+                        if (area > maxCellArea) {
+                            maxCellArea = area;
+                            bestCols = cols;
+                            bestRows = rows;
+                            bestCellW = cellW;
+                            bestCellH = cellH;
+                        }
+                    }
+                }
+
+                const gridTotalW = bestCols * bestCellW + (bestCols - 1) * pad;
+                const gridTotalH = bestRows * bestCellH + (bestRows - 1) * pad;
+
+                // Center grid inside folder container
+                const startX = contentX + Math.max(0, (contentW - gridTotalW) / 2);
+                const startY = contentY + Math.max(0, (contentH - gridTotalH) / 2);
+
+                for (let i = 0; i < count; i++) {
+                    const r = Math.floor(i / bestCols);
+                    const c = i % bestCols;
+
+                    const childX = startX + c * (bestCellW + pad);
+                    const childY = startY + r * (bestCellH + pad);
+
+                    // Strictly preserve 16:9 for every child panel
+                    layoutNodeHierarchy(node.children[i], childX, childY, bestCellW, bestCellH, depth + 1);
+                }
+            }
+        }
+
+        function initCanvases() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                renderScene();
+            });
+        }
+
+        function setupInteractionEvents() {
+            // Mouse Wheel Zooming relative to mouse pointer
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+                
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+
+                state.transform.x = mouseX - (mouseX - state.transform.x) * zoomFactor;
+                state.transform.y = mouseY - (mouseY - state.transform.y) * zoomFactor;
+                state.transform.scale *= zoomFactor;
+
+                playSound('zoom');
+                renderScene();
+            }, { passive: false });
+
+            // Dragging / Panning
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    state.isDragging = true;
+                    state.dragStart.x = e.clientX - state.transform.x;
+                    state.dragStart.y = e.clientY - state.transform.y;
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                state.mouse.x = e.clientX;
+                state.mouse.y = e.clientY;
+
+                if (state.isDragging) {
+                    state.transform.x = e.clientX - state.dragStart.x;
+                    state.transform.y = e.clientY - state.dragStart.y;
+                    renderScene();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                state.isDragging = false;
+            });
+
+            // Drag & Drop Folder functionality
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                document.getElementById('drop-overlay').classList.remove('opacity-0', 'pointer-events-none');
+            });
+
+            window.addEventListener('dragleave', (e) => {
+                if (e.clientX <= 0 || e.clientY <= 0) {
+                    document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
+                }
+            });
+
+            window.addEventListener('drop', (e) => {
+                e.preventDefault();
+                document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
+                
+                const items = e.dataTransfer.items;
+                if (items && items.length > 0) {
+                    const files = Array.from(e.dataTransfer.files);
+                    if (files.length > 0) handleFolderFiles(files);
+                }
+            });
+        }
+
+        function resetZoom() {
+            state.transform = {
+                x: window.innerWidth / 2 - 800 * 0.5,
+                y: window.innerHeight / 2 - 450 * 0.5,
+                scale: 0.5
+            };
+            renderScene();
+        }
+
+        function renderScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background Grid Lines
+            drawBackgroundGrid();
+
+            // Recursively render root hierarchy
+            if (state.rootNode) {
+                renderNode(state.rootNode);
+            }
+
+            // Draw Minimap
+            renderMinimap();
+        }
+
+        function drawBackgroundGrid() {
+            ctx.save();
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            const gridSize = 64 * state.transform.scale;
+
+            if (gridSize > 12) {
+                const offsetX = state.transform.x % gridSize;
+                const offsetY = state.transform.y % gridSize;
+
+                ctx.beginPath();
+                for (let x = offsetX; x < canvas.width; x += gridSize) {
+                    ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+                }
+                for (let y = offsetY; y < canvas.height; y += gridSize) {
+                    ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function renderNode(node) {
+            // Transform world coords to screen coords
+            const screenX = node.x * state.transform.scale + state.transform.x;
+            const screenY = node.y * state.transform.scale + state.transform.y;
+            const screenW = node.width * state.transform.scale;
+            const screenH = node.height * state.transform.scale;
+
+            // Frustum Culling (Skip out-of-screen panels)
+            if (screenX + screenW < 0 || screenX > canvas.width ||
+                screenY + screenH < 0 || screenY > canvas.height) {
+                return;
+            }
+
+            // --- LEVEL OF DETAIL (LOD) THRESHOLDS ---
+            // 1. Ultra Tiny LOD (< 4px): Colored dot
+            if (screenW < 4) {
+                ctx.fillStyle = node.type === 'folder' ? '#3b82f6' : '#64748b';
+                ctx.fillRect(screenX, screenY, Math.max(1, screenW), Math.max(1, screenH));
+                return;
+            }
+
+            // 2. Low LOD (4px - 30px): Simple Solid Rectangle
+            if (screenW < 30) {
+                ctx.fillStyle = node.type === 'folder' ? '#1e293b' : '#0f172a';
+                ctx.fillRect(screenX, screenY, screenW, screenH);
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(screenX, screenY, screenW, screenH);
+                return;
+            }
+
+            // 3. Medium & High LOD (screenW >= 30px)
+            const isHovered = state.mouse.x >= screenX && state.mouse.x <= screenX + screenW &&
+                              state.mouse.y >= screenY && state.mouse.y <= screenY + screenH;
+
+            ctx.save();
+            
+            // Container Card Background
+            ctx.fillStyle = node.type === 'folder' ? '#0f172a' : '#090d16';
+            ctx.fillRect(screenX, screenY, screenW, screenH);
+
+            // Panel Border
+            ctx.strokeStyle = isHovered ? '#3b82f6' : '#1e293b';
+            ctx.lineWidth = isHovered ? 2 : 1;
+            ctx.strokeRect(screenX, screenY, screenW, screenH);
+
+            // Header Bar
+            const headerH = screenH * (node.type === 'folder' ? 0.13 : 0.18);
+            ctx.fillStyle = isHovered ? 'rgba(59, 130, 246, 0.15)' : (node.type === 'folder' ? '#1e293b' : '#0f172a');
+            ctx.fillRect(screenX, screenY, screenW, headerH);
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY + headerH);
+            ctx.lineTo(screenX + screenW, screenY + headerH);
+            ctx.strokeStyle = isHovered ? '#3b82f6' : '#334155';
+            ctx.stroke();
+
+            // Header Title Icon Selection based on file extension category
+            let iconChar = '📁 ';
+            if (node.type === 'file') {
+                if (IMAGE_EXTS.includes(node.ext)) iconChar = '🖼️ ';
+                else if (TEXT_EXTS.includes(node.ext)) iconChar = '📄 ';
+                else if (BINARY_EXTS.includes(node.ext)) iconChar = '⚙️ ';
+                else if (ARCHIVE_EXTS.includes(node.ext)) iconChar = '📦 ';
+                else if (VIDEO_EXTS.includes(node.ext)) iconChar = '🎬 ';
+                else if (AUDIO_EXTS.includes(node.ext)) iconChar = '🎵 ';
+                else if (DOC_EXTS.includes(node.ext)) iconChar = '📕 ';
+                else iconChar = '💾 ';
+            }
+
+            // Header Title Text
+            const fontSize = Math.max(10, Math.min(16, screenW * 0.036));
+            ctx.font = `600 ${fontSize}px "Inter", sans-serif`;
+            ctx.fillStyle = isHovered ? '#60a5fa' : (node.type === 'folder' ? '#f8fafc' : '#cbd5e1');
+            ctx.fillText(iconChar + node.name, screenX + 10, screenY + headerH * 0.68);
+
+            // Depth / Ratio Badge
+            if (screenW > 180) {
+                ctx.font = '10px "JetBrains Mono"';
+                ctx.fillStyle = '#64748b';
+                ctx.fillText(`L${node.depth} | 16:9`, screenX + screenW - 65, screenY + headerH * 0.68);
+            }
+
+            // High LOD Content Preview (w >= 180px)
+            if (screenW >= 180 && node.type === 'file') {
+                renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
+            }
+
+            ctx.restore();
+
+            // --- SUBFOLDER DELAYED RENDERING (LOD OPTIMIZATION) ---
+            // Sub-children are only rendered when zoomed in sufficiently (screenW > 120px)
+            if (node.type === 'folder' && screenW > 120) {
+                for (let i = 0; i < node.children.length; i++) {
+                    renderNode(node.children[i]);
+                }
+            }
+        }
+
+        function renderFlatFilePreview(node, ctx, x, y, w, h) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+
+            const padding = Math.max(8, w * 0.03);
+            const contentX = x + padding;
+            const contentY = y + padding;
+            const contentW = w - padding * 2;
+            const contentH = h - padding * 2;
+
+            const ext = node.ext.toLowerCase();
+
+            // ==========================================
+            // 1. EXECUTABLE & SYSTEM BINARY FILES (.exe, .dll, .bin, .sys, etc.)
+            // ==========================================
+            if (BINARY_EXTS.includes(ext)) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(contentX, contentY, contentW, contentH);
+                ctx.strokeStyle = '#334155';
+                ctx.strokeRect(contentX, contentY, contentW, contentH);
+
+                const iconSize = Math.max(16, Math.min(48, w * 0.12));
+                ctx.fillStyle = '#f43f5e';
+                ctx.font = `${iconSize}px "Inter", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⚙️', contentX + contentW / 2, contentY + contentH / 2 - 10);
+
+                ctx.font = '600 11px "JetBrains Mono"';
+                ctx.fillStyle = '#fda4af';
+                ctx.fillText(`SYSTEM / BINARY (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
+                
+                if (w >= 400 && node.fileObj) {
+                    ctx.font = '10px "Inter"';
+                    ctx.fillStyle = '#94a3b8';
+                    const sizeMB = (node.fileObj.size / (1024 * 1024)).toFixed(2);
+                    ctx.fillText(`Size: ${sizeMB} MB | Executable Data`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 26);
+                }
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.restore();
+                return;
+            }
+
+            // ==========================================
+            // 2. ARCHIVE FILES (.zip, .7z, .rar, .tar, etc.)
+            // ==========================================
+            if (ARCHIVE_EXTS.includes(ext)) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(contentX, contentY, contentW, contentH);
+                ctx.strokeStyle = '#334155';
+                ctx.strokeRect(contentX, contentY, contentW, contentH);
+
+                const iconSize = Math.max(16, Math.min(48, w * 0.12));
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = `${iconSize}px "Inter", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('📦', contentX + contentW / 2, contentY + contentH / 2 - 10);
+
+                ctx.font = '600 11px "JetBrains Mono"';
+                ctx.fillStyle = '#7dd3fc';
+                ctx.fillText(`ARCHIVE CONTAINER (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.restore();
+                return;
+            }
+
+            // ==========================================
+            // 3. MEDIA & DOCUMENT FILES (.mp4, .mp3, .pdf, etc.)
+            // ==========================================
+            if (VIDEO_EXTS.includes(ext) || AUDIO_EXTS.includes(ext) || DOC_EXTS.includes(ext)) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(contentX, contentY, contentW, contentH);
+                ctx.strokeStyle = '#334155';
+                ctx.strokeRect(contentX, contentY, contentW, contentH);
+
+                const isVid = VIDEO_EXTS.includes(ext);
+                const isAud = AUDIO_EXTS.includes(ext);
+                const iconSymbol = isVid ? '🎬' : (isAud ? '🎵' : '📕');
+                const labelText = isVid ? 'VIDEO' : (isAud ? 'AUDIO' : 'DOCUMENT');
+
+                const iconSize = Math.max(16, Math.min(48, w * 0.12));
+                ctx.font = `${iconSize}px "Inter", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(iconSymbol, contentX + contentW / 2, contentY + contentH / 2 - 10);
+
+                ctx.font = '600 11px "JetBrains Mono"';
+                ctx.fillStyle = '#a7f3d0';
+                ctx.fillText(`${labelText} FILE (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.restore();
+                return;
+            }
+
+            // ==========================================
+            // 4. IMAGE FILES (Aspect Ratio Preserved & Dynamic LOD)
+            // ==========================================
+            if (IMAGE_EXTS.includes(ext)) {
+                // Lazy load image element
+                if (node.fileObj && !node.contentLoaded && !node.loading) {
+                    node.loading = true;
+                    node.mediaUrl = URL.createObjectURL(node.fileObj);
+                    const img = new Image();
+                    img.onload = () => { node.imgElement = img; node.contentLoaded = true; node.loading = false; renderScene(); };
+                    img.onerror = () => { node.loading = false; };
+                    img.src = node.mediaUrl;
+                }
+
+                if (node.imgElement) {
+                    try {
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = w >= 600 ? 'high' : 'low';
+
+                        const imgW = node.imgElement.width;
+                        const imgH = node.imgElement.height;
+                        const imgAspect = imgW / imgH;
+                        const containerAspect = contentW / contentH;
+
+                        let drawW, drawH, drawX, drawY;
+                        // Preserve original image aspect ratio within container
+                        if (imgAspect > containerAspect) {
+                            drawW = contentW; drawH = contentW / imgAspect;
+                            drawX = contentX; drawY = contentY + (contentH - drawH) / 2;
+                        } else {
+                            drawH = contentH; drawW = contentH * imgAspect;
+                            drawX = contentX + (contentW - drawW) / 2; drawY = contentY;
+                        }
+
+                        ctx.fillStyle = '#050811';
+                        ctx.fillRect(contentX, contentY, contentW, contentH);
+                        ctx.drawImage(node.imgElement, drawX, drawY, drawW, drawH);
+                        ctx.strokeStyle = '#1e293b';
+                        ctx.strokeRect(drawX, drawY, drawW, drawH);
+                    } catch(e) {}
+                } else {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(contentX, contentY, contentW, contentH);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = '11px "JetBrains Mono"';
+                    ctx.fillText(`IMAGE PREVIEW: ${node.name}`, contentX + 12, contentY + 22);
+                }
+                ctx.restore();
+                return;
+            }
+
+            // ==========================================
+            // 5. TEXT & CODE FILES (First 10 Lines Preview -> Full Text LOD)
+            // ==========================================
+            // Lazy load text file slice
+            if (node.fileObj && !node.contentLoaded && !node.loading && (TEXT_EXTS.includes(ext) || ext === '')) {
+                node.loading = true;
+                const reader = new FileReader();
+                const blobSlice = node.fileObj.slice(0, 51200); // 50KB preview slice
+                reader.onload = (e) => { node.content = e.target.result; node.contentLoaded = true; node.loading = false; renderScene(); };
+                reader.onerror = () => { node.loading = false; };
+                reader.readAsText(blobSlice);
+            }
+
+            const fontSize = Math.max(10, Math.min(16, w * 0.026));
+            ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+
+            const allLines = (node.content || '').split('\n');
+            const isDeepZoom = w >= 600;
+            const lines = isDeepZoom ? allLines : allLines.slice(0, 10);
+            const maxLines = isDeepZoom ? Math.floor(contentH / (fontSize * 1.35)) : 10;
+
+            for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
+                const lineY = contentY + (i + 1) * (fontSize * 1.35);
+                const lineText = lines[i];
+
+                if (lineText.includes('class') || lineText.includes('import') || lineText.includes('package')) {
+                    ctx.fillStyle = '#60a5fa';
+                } else if (lineText.includes('export') || lineText.includes('function') || lineText.includes('const')) {
+                    ctx.fillStyle = '#34d399';
+                } else if (lineText.startsWith('//') || lineText.startsWith('/*') || lineText.startsWith('#')) {
+                    ctx.fillStyle = '#64748b';
+                } else {
+                    ctx.fillStyle = '#cbd5e1';
+                }
+
+                ctx.fillText(lineText, contentX, lineY);
+            }
+
+            if (!isDeepZoom && allLines.length > 10) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.fillRect(contentX, contentY + contentH - 22, contentW, 22);
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = '10px "JetBrains Mono"';
+                ctx.fillText(`[Preview: 10 of ${allLines.length} lines - Zoom in for full text]`, contentX + 6, contentY + contentH - 7);
+            }
+
+            ctx.restore();
+        }
+
+        function renderMinimap() {
+            minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+            minimapCtx.fillStyle = '#090d16';
+            minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+            // Draw current viewport frame in minimap
+            const vpX = (-state.transform.x) * (minimapCanvas.width / canvas.width);
+            const vpY = (-state.transform.y) * (minimapCanvas.height / canvas.height);
+            const vpW = canvas.width * (minimapCanvas.width / (1600 * state.transform.scale));
+            const vpH = canvas.height * (minimapCanvas.height / (900 * state.transform.scale));
+
+            minimapCtx.strokeStyle = '#38bdf8';
+            minimapCtx.lineWidth = 1.5;
+            minimapCtx.strokeRect(vpX, vpY, vpW, vpH);
+
+            document.getElementById('zoom-level-indicator').textContent = `${Math.round(state.transform.scale * 100)}%`;
+        }
+
+        function triggerFolderSelect() {
+            document.getElementById('folder-input').click();
+        }
+
+        function handleFolderSelect(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length > 0) handleFolderFiles(files);
+        }
+
+        function handleFolderFiles(fileList) {
+            document.getElementById('status-text').textContent = `Scanning ${fileList.length} items...`;
+            state.isLoadingFolder = true;
+
+            buildTreeFromFileListAsync(fileList, (newRoot) => {
+                if (newRoot) {
+                    state.rootNode = newRoot;
+                    resetZoom();
+                    playSound('click');
+                    document.getElementById('status-text').textContent = `Loaded ${fileList.length} items successfully`;
+                }
+                state.isLoadingFolder = false;
+            });
+        }
+
+        function buildTreeFromFileListAsync(fileList, callback) {
+            const root = {
+                id: 'workspace_root_' + Date.now(),
+                name: 'Workspace Directory',
+                type: 'folder',
+                ext: '',
+                content: '',
+                children: [],
+                x: 0, y: 0, width: 1600, height: 900,
+                depth: 0
+            };
+
+            const total = fileList.length;
+            let index = 0;
+            const chunkSize = 400;
+
+            function processChunk() {
+                const end = Math.min(index + chunkSize, total);
+                
+                for (; index < end; index++) {
+                    const file = fileList[index];
+                    const pathParts = (file.webkitRelativePath || file.name).split('/');
+                    let currentFolder = root;
+
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        const dirName = pathParts[i];
+                        let existingDir = currentFolder.children.find(c => c.name === dirName && c.type === 'folder');
+
+                        if (!existingDir) {
+                            existingDir = {
+                                id: 'dir_' + Math.random().toString(36).substr(2, 9),
+                                name: dirName,
+                                type: 'folder',
+                                ext: '',
+                                content: '',
+                                children: [],
+                                x: 0, y: 0, width: 1600, height: 900,
+                                depth: 0
+                            };
+                            currentFolder.children.push(existingDir);
+                        }
+                        currentFolder = existingDir;
+                    }
+
+                    const fileName = pathParts[pathParts.length - 1];
+                    const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+
+                    currentFolder.children.push({
+                        id: 'file_' + Math.random().toString(36).substr(2, 9),
+                        name: fileName,
+                        type: 'file',
+                        ext: ext,
+                        content: '',
+                        fileObj: file,
+                        children: [],
+                        x: 0, y: 0, width: 1600, height: 900,
+                        depth: 0
+                    });
+                }
+
+                document.getElementById('status-text').textContent = `Indexing: ${index} / ${total} items...`;
+
+                if (index < total) {
+                    requestAnimationFrame(processChunk);
+                } else {
+                    layoutNodeHierarchy(root, 0, 0, 1600, 900, 0);
+                    callback(root);
+                }
+            }
+
+            processChunk();
+        }
+
+        function showElectronModal() {
+            document.getElementById('electron-modal').classList.remove('hidden');
+        }
+
+        function hideElectronModal() {
+            document.getElementById('electron-modal').classList.add('hidden');
+        }
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            initCanvases();
+            state.rootNode = buildFileSystemTree();
+            resetZoom();
+            setupInteractionEvents();
+            renderScene();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"notebook.lineNumbers": "on",
+		"workbench.colorCustomizations": {
+		"titleBar.activeBackground": 	"#0d79b8", // タイトルバーの背景色
+		"titleBar.activeForeground": 	"#ffffff", // タイトルバーの文字色
+		"statusBar.background":			"#0d79b8", // ステータスバーの背景色
+		"statusBar.foreground": 		"#ffffff", // ステータスバーの文字色
+		"activityBar.background": 		"#0d79b8", // アクティビティバーの背景色
+		"activityBar.foreground": 		"#ffffff", // アクティビティバーの文字色
+	},
+	}
+}

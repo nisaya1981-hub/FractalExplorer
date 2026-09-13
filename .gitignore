@@ -1,0 +1,13 @@
+node_modules/
+temp/
+.git/
+dist/
+
+*.nvpl
+*.nvpls
+*.lnk
+*.log
+
+favorites.txt
+app-state.json
+config.json
