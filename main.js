@@ -5,10 +5,54 @@ const fs = require('fs');
 // Global reference to the main window to prevent garbage collection
 let mainWindow = null;
 
+// Paths for persistent data storage
+const rootsFilePath = path.join(app.getPath('userData'), 'saved_roots.json');
+const windowStateFilePath = path.join(app.getPath('userData'), 'window_state.json');
+
+/**
+ * Helper: Load previous window dimensions and position
+ */
+function loadWindowState() {
+    try {
+        if (fs.existsSync(windowStateFilePath)) {
+            const data = fs.readFileSync(windowStateFilePath, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Failed to load window state:', e);
+    }
+    return { width: 1440, height: 900 };
+}
+
+/**
+ * Helper: Save window dimensions and position
+ */
+function saveWindowState(win) {
+    if (!win) return;
+    try {
+        const isMaximized = win.isMaximized();
+        const bounds = win.getBounds();
+        const state = {
+            width: bounds.width,
+            height: bounds.height,
+            x: bounds.x,
+            y: bounds.y,
+            isMaximized: isMaximized
+        };
+        fs.writeFileSync(windowStateFilePath, JSON.stringify(state, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save window state:', e);
+    }
+}
+
 function createWindow() {
+    const savedState = loadWindowState();
+
     mainWindow = new BrowserWindow({
-        width: 1440,
-        height: 900,
+        width: savedState.width || 1440,
+        height: savedState.height || 900,
+        x: savedState.x,
+        y: savedState.y,
         minWidth: 800,
         minHeight: 600,
         title: 'FractalExplorer',
@@ -19,6 +63,25 @@ function createWindow() {
             contextIsolation: false,
             webSecurity: false // Allows loading local file protocols and images smoothly
         }
+    });
+
+    if (savedState.isMaximized) {
+        mainWindow.maximize();
+    }
+
+    // Save window state on move or resize (debounced)
+    let saveTimeout = null;
+    const debouncedSave = () => {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            saveWindowState(mainWindow);
+        }, 300);
+    };
+
+    mainWindow.on('resize', debouncedSave);
+    mainWindow.on('move', debouncedSave);
+    mainWindow.on('close', () => {
+        saveWindowState(mainWindow);
     });
 
     // Remove default menu bar for clean UI
@@ -52,9 +115,6 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
-
-// Storage File Path for saving workspace root paths across app sessions
-const rootsFilePath = path.join(app.getPath('userData'), 'saved_roots.json');
 
 /**
  * IPC Handler: Save workspace root paths

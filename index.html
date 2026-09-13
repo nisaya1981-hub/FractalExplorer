@@ -11,8 +11,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <!-- Tone.js for subtle sound effects -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <!-- PDF.js for rendering PDF documents -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
@@ -115,10 +113,6 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 00-1 1m-6 0h6"></path></svg>
                 <span>Reset View</span>
             </button>
-
-            <button onclick="toggleAudio()" id="audio-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs border border-slate-700">
-                🔊
-            </button>
         </div>
     </header>
 
@@ -193,9 +187,6 @@
         const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'];
         const DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
-        // Only exact system reserved directories are ignored
-        const IGNORED_FOLDERS = ['$recycle.bin', 'system volume information', 'recovery', '$windows.~bt', '$windows.~ws', 'config.msi'];
-
         // Helper: Check if item/folder is hidden (. or $ prefix)
         function isItemHidden(name) {
             if (!name) return false;
@@ -208,37 +199,11 @@
             dragStart: { x: 0, y: 0 },
             mouseDownPos: { x: 0, y: 0 },
             mouse: { x: 0, y: 0 },
-            audioEnabled: false,
             rootNode: null,
             isLoadingFolder: false,
             selectedContextNode: null,
             selectedNode: null
         };
-
-        let synth = null;
-        function initAudio() {
-            if (!synth && window.Tone) {
-                synth = new Tone.Synth({
-                    oscillator: { type: 'sine' },
-                    envelope: { attack: 0.005, decay: 0.05, sustain: 0, release: 0.1 }
-                }).toDestination();
-                synth.volume.value = -18;
-            }
-        }
-
-        function playSound(type) {
-            if (!state.audioEnabled || !synth) return;
-            try {
-                if (type === 'zoom') synth.triggerAttackRelease('C6', '32n');
-                else if (type === 'click') synth.triggerAttackRelease('E5', '16n');
-            } catch(e) {}
-        }
-
-        function toggleAudio() {
-            state.audioEnabled = !state.audioEnabled;
-            if (state.audioEnabled) initAudio();
-            document.getElementById('audio-btn').textContent = state.audioEnabled ? '🔊' : '🔇';
-        }
 
         function initCanvases() {
             canvas.width = window.innerWidth;
@@ -260,7 +225,8 @@
                 children: [],
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 0,
-                scanned: true
+                scanned: true,
+                isExpanded: true
             };
         }
 
@@ -398,6 +364,7 @@
                                 scanned: false,
                                 isScanning: false,
                                 isHidden: isHidden,
+                                isExpanded: false,
                                 parent: node
                             });
                         }
@@ -414,6 +381,7 @@
                     node.scanned = true;
                     node.isScanning = false;
                     renderScene();
+                    renderTreeView();
                 }
             } else if (node.directoryHandle) {
                 try {
@@ -435,6 +403,7 @@
                             scanned: false,
                             isScanning: false,
                             isHidden: isHidden,
+                            isExpanded: false,
                             directoryHandle: isDir ? entry : null,
                             fileHandle: !isDir ? entry : null,
                             parent: node
@@ -451,11 +420,13 @@
                     node.scanned = true;
                     node.isScanning = false;
                     renderScene();
+                    renderTreeView();
                 }
             } else {
                 node.scanned = true;
                 node.isScanning = false;
                 renderScene();
+                renderTreeView();
             }
         }
 
@@ -1032,13 +1003,13 @@
                 depth: 1,
                 scanned: false,
                 isScanning: false,
-                isHidden: isItemHidden(folderName)
+                isHidden: isItemHidden(folderName),
+                isExpanded: true
             };
 
             state.rootNode.children.push(rootItem);
             layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
             resetZoom();
-            playSound('click');
 
             await triggerLazyFolderScan(rootItem);
 
@@ -1063,13 +1034,13 @@
                 depth: 1,
                 scanned: false,
                 isScanning: false,
-                isHidden: isItemHidden(handle.name)
+                isHidden: isItemHidden(handle.name),
+                isExpanded: true
             };
 
             state.rootNode.children.push(rootItem);
             layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
             resetZoom();
-            playSound('click');
 
             await triggerLazyFolderScan(rootItem);
             state.isLoadingFolder = false;
@@ -1137,14 +1108,14 @@
                 children: [],
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
-                scanned: true
+                scanned: true,
+                isExpanded: true
             };
 
             buildTreeFromFileListAsync(fileList, rootItem, () => {
                 state.rootNode.children.push(rootItem);
                 layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
                 resetZoom();
-                playSound('click');
                 state.isLoadingFolder = false;
                 updateStatusText();
             });
@@ -1178,7 +1149,9 @@
                                 children: [],
                                 x: 0, y: 0, width: 1600, height: 900,
                                 depth: currentFolder.depth + 1,
-                                isHidden: isItemHidden(dirName)
+                                isHidden: isItemHidden(dirName),
+                                isExpanded: false,
+                                parent: currentFolder
                             };
                             currentFolder.children.push(existingDir);
                         }
@@ -1198,7 +1171,8 @@
                         children: [],
                         x: 0, y: 0, width: 1600, height: 900,
                         depth: currentFolder.depth + 1,
-                        isHidden: isItemHidden(fileName)
+                        isHidden: isItemHidden(fileName),
+                        parent: currentFolder
                     });
                 }
 
@@ -1231,7 +1205,6 @@
                         if (newPage !== hoverNode.currentPage) {
                             hoverNode.currentPage = newPage;
                             renderPdfPageToCache(hoverNode, newPage);
-                            playSound('click');
                         }
                     } else {
                         state.transform.y -= e.deltaY * 1.2;
@@ -1249,7 +1222,6 @@
                 state.transform.y = mouseY - (mouseY - state.transform.y) * zoomFactor;
                 state.transform.scale *= zoomFactor;
 
-                playSound('zoom');
                 renderScene();
             }, { passive: false });
 
@@ -1335,19 +1307,40 @@
             });
         }
 
+        // Helper: Expand all parent folders leading up to the target node
+        function expandAncestors(node) {
+            let curr = node ? node.parent : null;
+            while (curr) {
+                if (curr.type === 'folder') {
+                    curr.isExpanded = true;
+                }
+                curr = curr.parent;
+            }
+        }
+
         // Selection & Sidebar Updates
         function selectNode(node) {
             state.selectedNode = node;
-            playSound('click');
+            expandAncestors(node);
 
             // Update Top Path Bar
             const pathInput = document.getElementById('path-input');
             if (pathInput) {
-                pathInput.value = node.nativePath || node.name || '';
+                pathInput.value = node ? (node.nativePath || node.name || '') : '';
             }
 
             updateSidebarUI();
             renderScene();
+
+            // Auto-scroll tree sidebar element into view
+            if (node) {
+                setTimeout(() => {
+                    const activeTreeEl = document.querySelector(`.tree-item[data-id="${node.id}"]`);
+                    if (activeTreeEl) {
+                        activeTreeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                }, 40);
+            }
         }
 
         function updateSidebarUI() {
@@ -1421,6 +1414,16 @@
             `;
         }
 
+        // Toggle Expand / Collapse Tree Folder Node
+        function toggleTreeExpand(nodeId, event) {
+            if (event) event.stopPropagation();
+            const node = findNodeById(state.rootNode, nodeId);
+            if (node && node.type === 'folder') {
+                node.isExpanded = !node.isExpanded;
+                renderTreeView();
+            }
+        }
+
         function renderTreeView() {
             const container = document.getElementById('tree-view-container');
             const countLabel = document.getElementById('tree-node-count');
@@ -1438,24 +1441,36 @@
                 if (node.depth > 0) {
                     totalCount++;
                     const isSelected = state.selectedNode === node;
-                    const icon = node.type === 'folder' ? (node.scanned ? '📁' : '📂') : '📄';
+                    const isDir = node.type === 'folder';
                     const indentPx = indent * 12;
 
+                    let arrowHtml = '<span class="w-3 text-center inline-block"></span>';
+                    if (isDir) {
+                        const arrowChar = node.isExpanded ? '▼' : '▶';
+                        arrowHtml = `<span onclick="toggleTreeExpand('${node.id}', event)" class="w-3 text-center inline-block cursor-pointer text-slate-400 hover:text-blue-400 text-[9px] select-none">${arrowChar}</span>`;
+                    }
+
+                    const icon = isDir ? (node.scanned ? '📁' : '📂') : '📄';
+
                     html += `
-                        <div onclick="event.stopPropagation(); selectNodeById('${node.id}')" 
-                             class="tree-item px-2 py-1 rounded cursor-pointer transition-colors flex items-center space-x-1.5 truncate ${isSelected ? 'active text-blue-300 font-semibold' : 'text-slate-300'}"
-                             style="padding-left: ${indentPx + 6}px;">
-                            <span>${icon}</span>
-                            <span class="truncate">${node.name}</span>
+                        <div data-id="${node.id}" onclick="event.stopPropagation(); selectNodeById('${node.id}')" 
+                             class="tree-item px-1.5 py-1 rounded cursor-pointer transition-colors flex items-center space-x-1 truncate ${isSelected ? 'active text-blue-300 font-semibold' : 'text-slate-300'}"
+                             style="padding-left: ${indentPx + 4}px;">
+                            ${arrowHtml}
+                            <span class="text-xs">${icon}</span>
+                            <span class="truncate ml-0.5">${node.name}</span>
                         </div>
                     `;
                 }
 
                 if (node.children && node.children.length > 0) {
+                    // Only render sub-children if the current folder node is expanded or is workspace root (depth 0)
+                    if (node.depth === 0 || node.isExpanded) {
                     for (const child of node.children) {
                         buildTreeHTML(child, indent + (node.depth > 0 ? 1 : 0));
                     }
                 }
+            }
             }
 
             buildTreeHTML(state.rootNode, 0);
@@ -1467,6 +1482,7 @@
             const found = findNodeById(state.rootNode, id);
             if (found) {
                 selectNode(found);
+                zoomToNode(found);
             }
         }
 
@@ -1528,7 +1544,6 @@
             state.transform.x = targetX;
             state.transform.y = targetY;
 
-            playSound('zoom');
             renderScene();
         }
 
