@@ -163,7 +163,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 });
 
 /**
- * IPC Handler: Fast Native Directory Scanner with Symlink & Special Folder Support ($BEST, etc.)
+ * IPC Handler: Fast Native Directory Scanner with Box Drive / Windows Attribute Detection
  */
 ipcMain.handle('fs:readDir', async (event, dirPath) => {
     try {
@@ -174,11 +174,25 @@ ipcMain.handle('fs:readDir', async (event, dirPath) => {
             const fullPath = path.join(dirPath, entry.name);
             let isDirectory = false;
             let size = 0;
+            let isOnlineOnly = false;
 
             try {
                 isDirectory = entry.isDirectory();
                 
-                // Handle symbolic links, junctions, or system/special folders (e.g. $BEST)
+                // Check Windows File Attributes for Cloud Placeholders (Box Drive / OneDrive)
+                const lstats = await fs.promises.lstat(fullPath);
+                if (typeof lstats.attributes === 'number') {
+                    const attr = lstats.attributes;
+                    // FILE_ATTRIBUTE_OFFLINE (0x1000)
+                    // FILE_ATTRIBUTE_RECALL_ON_OPEN (0x40000)
+                    // FILE_ATTRIBUTE_REPARSE_POINT (0x400) + SPARSE_FILE (0x200)
+                    if ((attr & 0x1000) !== 0 || (attr & 0x40000) !== 0 || ((attr & 0x400) !== 0 && (attr & 0x200) !== 0)) {
+                        isOnlineOnly = true;
+                    }
+                } else if (lstats.isSymbolicLink()) {
+                    isOnlineOnly = true;
+                }
+
                 if (!isDirectory && entry.isSymbolicLink()) {
                     const stats = await fs.promises.stat(fullPath);
                     isDirectory = stats.isDirectory();
@@ -200,7 +214,8 @@ ipcMain.handle('fs:readDir', async (event, dirPath) => {
                 type: isDirectory ? 'folder' : 'file',
                 ext: ext,
                 size: size,
-                isHidden: isHidden
+                isHidden: isHidden,
+                isOnlineOnly: isOnlineOnly
             });
         }
 

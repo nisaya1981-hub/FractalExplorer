@@ -445,6 +445,8 @@
                                 scanned: false,
                                 isScanning: false,
                                 isHidden: isHidden,
+                                isOnlineOnly: item.isOnlineOnly || false,
+                                isManualLoaded: false,
                                 isExpanded: false,
                                 parent: node
                             });
@@ -484,6 +486,8 @@
                             scanned: false,
                             isScanning: false,
                             isHidden: isHidden,
+                            isOnlineOnly: false,
+                            isManualLoaded: false,
                             isExpanded: false,
                             directoryHandle: isDir ? entry : null,
                             fileHandle: !isDir ? entry : null,
@@ -513,6 +517,10 @@
 
         async function triggerLazyFileContentLoad(node) {
             if (node.contentLoaded || node.isContentLoading) return;
+
+            // PREVENT AUTOMATIC CLOUD DOWNLOAD: Skip auto-load for online-only files unless manually triggered
+            if (node.isOnlineOnly && !node.isManualLoaded) return;
+
             node.isContentLoading = true;
 
             if (ipcRenderer && node.nativePath && TEXT_EXTS.includes(node.ext)) {
@@ -540,6 +548,10 @@
 
         async function triggerLazyPdfLoad(node) {
             if (node.pdfDoc || node.isPdfLoading || !window.pdfjsLib) return;
+
+            // PREVENT AUTOMATIC CLOUD DOWNLOAD for PDF
+            if (node.isOnlineOnly && !node.isManualLoaded) return;
+
             node.isPdfLoading = true;
             node.currentPage = node.currentPage || 1;
 
@@ -586,6 +598,19 @@
             } catch(e) {
                 console.error('PDF page render error:', e);
             }
+        }
+
+        // Helper: Trigger manual download/preview load for Online-Only Box Drive file
+        function loadOnlinePreview(node) {
+            if (!node) return;
+            node.isManualLoaded = true;
+            if (TEXT_EXTS.includes(node.ext)) {
+                triggerLazyFileContentLoad(node);
+            } else if (node.ext === 'pdf') {
+                triggerLazyPdfLoad(node);
+            }
+            renderScene();
+            updateSidebarUI();
         }
 
         function renderScene() {
@@ -652,7 +677,7 @@
             }
 
             // ON-DEMAND FILE PREVIEW TRIGGER FOR FILES
-            if (node.type === 'file' && !node.contentLoaded && !node.isContentLoading && screenW >= 240) {
+            if (node.type === 'file' && (!node.isOnlineOnly || node.isManualLoaded) && !node.contentLoaded && !node.isContentLoading && screenW >= 240) {
                 triggerLazyFileContentLoad(node);
             }
 
@@ -670,6 +695,7 @@
             // RULE: Hidden files and Archive files are ALWAYS Icon-only (Level 1)
             // -------------------------------------------------------------
             const isArchive = ARCHIVE_EXTS.includes(node.ext);
+            const isOnlinePending = node.type === 'file' && node.isOnlineOnly && !node.isManualLoaded;
             const isForceIconOnly = node.isHidden || isArchive;
 
             // -------------------------------------------------------------
@@ -697,7 +723,8 @@
                     ctx.font = `${fontSize}px "Inter", sans-serif`;
                     
                     let icon = node.type === 'folder' ? '📁 ' : '📄 ';
-                    if (node.isHidden) icon = '🔒 ';
+                    if (node.isOnlineOnly && !node.isManualLoaded) icon = '☁️ ';
+                    else if (node.isHidden) icon = '🔒 ';
                     else if (isArchive) icon = '📦 ';
 
                     const label = icon + node.name;
@@ -730,7 +757,8 @@
             // File / Folder Category Icons
             let iconChar = '📁 ';
             if (node.type === 'file') {
-                if (IMAGE_EXTS.includes(node.ext)) iconChar = '🖼️ ';
+                if (node.isOnlineOnly && !node.isManualLoaded) iconChar = '☁️ ';
+                else if (IMAGE_EXTS.includes(node.ext)) iconChar = '🖼️ ';
                 else if (TEXT_EXTS.includes(node.ext)) iconChar = '📄 ';
                 else if (BINARY_EXTS.includes(node.ext)) iconChar = '⚙️ ';
                 else if (VIDEO_EXTS.includes(node.ext)) iconChar = '🎬 ';
@@ -748,18 +776,23 @@
             if (screenW > 180) {
                 let lodTag = screenW < 550 ? 'LOD 2: Preview' : 'LOD 3: Full';
                 if (isSelected) lodTag = 'SELECTED';
+                else if (isOnlinePending) lodTag = 'Online Only (Box)';
                 else if (node.isScanning || node.isContentLoading) lodTag = 'scanning';
                 else if (node.type === 'folder' && node.scanned && node.children.length === 0) lodTag = 'empty';
                 else if (node.type === 'folder' && !node.scanned) lodTag = 'Zoom to Scan';
 
                 ctx.font = '10px "JetBrains Mono"';
-                ctx.fillStyle = isSelected ? '#fbbf24' : ((node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b');
-                ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 120, screenY + headerH * 0.68);
+                ctx.fillStyle = isSelected ? '#fbbf24' : (isOnlinePending ? '#38bdf8' : ((node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b'));
+                ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 130, screenY + headerH * 0.68);
             }
 
             // Render File Contents (LOD 2 & LOD 3 according to strict rules)
             if (node.type === 'file') {
+                if (isOnlinePending) {
+                    renderOnlineOnlyPlaceholderCard(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
+                } else {
                 renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
+            }
             }
 
             // Render Subfolders & Folder Status Indicators (scanning / empty)
@@ -788,6 +821,44 @@
             }
 
             ctx.restore();
+        }
+
+        // Render Online-Only Placeholder Card (Prevents Auto-Download)
+        function renderOnlineOnlyPlaceholderCard(node, ctx, px, py, pw, ph) {
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(px, py, pw, ph);
+
+            const iconSize = Math.max(20, Math.min(48, pw * 0.09));
+            ctx.font = `${iconSize}px "Inter", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('☁️', px + pw / 2, py + ph / 2 - 12);
+
+            ctx.font = `600 ${Math.max(11, Math.min(16, pw * 0.024))}px "Inter", sans-serif`;
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('オンライン専用ファイル (Box Drive)', px + pw / 2, py + ph / 2 + 16);
+
+            ctx.font = `${Math.max(9, Math.min(12, pw * 0.018))}px "Inter", sans-serif`;
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('自動ダウンロードをスキップしています', px + pw / 2, py + ph / 2 + 34);
+
+            if (pw >= 280) {
+                const btnW = Math.min(240, pw * 0.6);
+                const btnH = Math.max(22, ph * 0.12);
+                const btnX = px + (pw - btnW) / 2;
+                const btnY = py + ph / 2 + 48;
+
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.2)';
+                ctx.fillRect(btnX, btnY, btnW, btnH);
+                ctx.strokeStyle = '#0284c7';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = '500 11px "Inter", sans-serif';
+                ctx.fillText('クリックでプレビューをロード', px + pw / 2, btnY + btnH * 0.68);
+            }
+
+            ctx.textAlign = 'left';
         }
 
         function renderFlatFilePreview(node, ctx, px, py, pw, ph) {
@@ -1407,6 +1478,10 @@
             expandAncestors(node);
 
             // Update Top Path Bar
+            if (node && node.isOnlineOnly && !node.isManualLoaded) {
+                loadOnlinePreview(node);
+            }
+
             const pathInput = document.getElementById('path-input');
             if (pathInput) {
                 pathInput.value = node ? (node.nativePath || node.name || '') : '';
@@ -1450,6 +1525,7 @@
 
             const fullPath = n.nativePath || n.name || 'Memory Node';
             const childCount = isDir ? (n.children ? n.children.length : 0) : null;
+            const isOnlinePending = n.type === 'file' && n.isOnlineOnly && !n.isManualLoaded;
             
             propPanel.innerHTML = `
                 <div class="space-y-2 font-mono text-[11px]">
@@ -1467,8 +1543,8 @@
                             <span class="text-slate-200">${isDir ? 'Folder' : (n.ext || 'File')}</span>
                         </div>
                         <div>
-                            <span class="text-slate-500 block text-[10px] uppercase">Depth</span>
-                            <span class="text-slate-200">Level ${n.depth}</span>
+                            <span class="text-slate-500 block text-[10px] uppercase">Storage State</span>
+                            <span class="${n.isOnlineOnly ? 'text-sky-400' : 'text-slate-300'}">${n.isOnlineOnly ? '☁️ Box Cloud' : '💾 Local Disk'}</span>
                         </div>
                     </div>
                     ${isDir ? `
@@ -1484,11 +1560,20 @@
                     </div>
                     ` : `
                     <div>
-                        <span class="text-slate-500 block text-[10px] uppercase">Content Loaded</span>
-                        <span class="${n.contentLoaded ? 'text-emerald-400' : 'text-slate-400'}">${n.contentLoaded ? 'Yes' : 'No'}</span>
+                        <span class="text-slate-500 block text-[10px] uppercase">Content Status</span>
+                        <span class="${n.contentLoaded || n.isManualLoaded ? 'text-emerald-400' : (isOnlinePending ? 'text-sky-400' : 'text-slate-400')}">
+                            ${n.contentLoaded || n.isManualLoaded ? 'Loaded' : (isOnlinePending ? '☁️ Online Only (Not Downloaded)' : 'Unloaded')}
+                        </span>
                     </div>
                     `}
-                    <div class="pt-2">
+                    ${isOnlinePending ? `
+                    <div class="pt-1">
+                        <button onclick="loadOnlinePreview(state.selectedNode)" class="w-full py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-sans text-xs font-medium transition-all shadow flex items-center justify-center space-x-1">
+                            <span>☁️ プレビューをダウンロードして表示</span>
+                        </button>
+                    </div>
+                    ` : ''}
+                    <div class="pt-1">
                         <button onclick="zoomToNode(state.selectedNode)" class="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-sans text-xs font-medium transition-all shadow">
                             🎯 Center & Zoom View
                         </button>
@@ -1533,7 +1618,8 @@
                         arrowHtml = `<span onclick="toggleTreeExpand('${node.id}', event)" class="w-3 text-center inline-block cursor-pointer text-slate-400 hover:text-blue-400 text-[9px] select-none">${arrowChar}</span>`;
                     }
 
-                    const icon = isDir ? (node.scanned ? '📁' : '📂') : '📄';
+                    let icon = isDir ? (node.scanned ? '📁' : '📂') : '📄';
+                    if (node.isOnlineOnly && !node.isManualLoaded) icon = '☁️';
 
                     html += `
                         <div data-id="${node.id}" onclick="event.stopPropagation(); selectNodeById('${node.id}')" 
