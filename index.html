@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eagle Mode Flat UI Explorer</title>
+<title>FractalExplorer</title>
 
     <!-- Tailwind CSS & Google Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -38,9 +38,8 @@
             cursor: grabbing;
         }
 
-        /* Glassmorphism overlays */
         .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
+            background: rgba(15, 23, 42, 0.88);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(51, 65, 85, 0.6);
@@ -61,29 +60,27 @@
 </head>
 <body class="text-slate-200">
 
-    <!-- Main Rendering Canvas -->
+    <!-- Main Viewport Canvas -->
     <canvas id="viewport-canvas"></canvas>
 
-    <!-- HUD Overlay Top Bar -->
+    <!-- Top Navigation & HUD -->
     <header class="fixed top-4 left-4 right-4 flex justify-between items-center z-20 pointer-events-none">
         <div class="glass-panel px-4 py-2.5 rounded-xl flex items-center space-x-3 pointer-events-auto shadow-xl">
             <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
-                🦅
+                ❄️
             </div>
             <div>
-                <h1 class="text-sm font-semibold text-slate-100 leading-tight">Eagle Mode Explorer</h1>
-                <p class="text-xs text-slate-400 font-mono" id="status-text">Deep Infinite 16:9 Viewport</p>
+        <h1 class="text-sm font-semibold text-slate-100 leading-tight">FractalExplorer</h1>
+                <p class="text-xs text-slate-400 font-mono" id="status-text">Multi-Root Infinite Workspace</p>
             </div>
         </div>
 
-        <!-- Action Controls -->
         <div class="glass-panel px-3 py-2 rounded-xl flex items-center space-x-2 pointer-events-auto shadow-xl">
-            <!-- Hidden native file input for local folder selection -->
-            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden" onchange="handleFolderSelect(event)">
+            <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden" onchange="handleBrowserFolderSelect(event)">
             
             <button onclick="triggerFolderSelect()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all shadow-md flex items-center space-x-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                <span>Open Folder(s)</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>+ Add Folder / Drive</span>
             </button>
 
             <button onclick="resetZoom()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1">
@@ -94,14 +91,10 @@
             <button onclick="toggleAudio()" id="audio-btn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs border border-slate-700">
                 🔊
             </button>
-
-            <button onclick="showElectronModal()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-mono font-medium border border-blue-900/50">
-                ELECTRON
-            </button>
         </div>
     </header>
 
-    <!-- Minimap Radar Bottom Right -->
+    <!-- Minimap Radar (Bottom Right) -->
     <div class="fixed bottom-4 right-4 z-20 pointer-events-none">
         <div class="glass-panel p-2 rounded-xl pointer-events-auto shadow-2xl flex flex-col items-end">
             <div class="text-[10px] font-mono text-slate-400 mb-1 flex justify-between w-full px-1">
@@ -112,66 +105,39 @@
         </div>
     </div>
 
-    <!-- Drag & Drop Overlay Hint -->
-    <div id="drop-overlay" class="fixed inset-0 bg-blue-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center border-4 border-dashed border-blue-500 m-6 rounded-3xl opacity-0 pointer-events-none transition-opacity duration-200">
-        <svg class="w-16 h-16 text-blue-400 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-        <p class="text-xl font-bold text-white">Drop Folder(s) Here to Explore</p>
-        <p class="text-sm text-blue-300 mt-1">Recursively index into 16:9 flat zoom panels</p>
+    <!-- Right-Click Context Menu -->
+    <div id="context-menu" class="fixed hidden z-50 glass-panel py-1.5 rounded-xl shadow-2xl w-56 border border-slate-700">
+        <div class="px-3 py-1 text-[11px] font-mono text-slate-400 border-b border-slate-800 truncate" id="ctx-item-name">
+            Folder Name
+        </div>
+        <button onclick="removeSelectedRoot()" class="w-full text-left px-3 py-2 text-xs text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 flex items-center space-x-2 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span>Delete Root Directory</span>
+        </button>
     </div>
 
-    <!-- Electron Boilerplate Code Modal -->
-    <div id="electron-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-slate-700 flex flex-col max-h-[85vh]">
-            <div class="flex justify-between items-center pb-4 border-b border-slate-800">
-                <h3 class="text-base font-semibold text-slate-100 flex items-center space-x-2">
-                    <span>⚡ Electron Native App Integration Setup</span>
-                </h3>
-                <button onclick="hideElectronModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
-            </div>
-            <div class="mt-4 overflow-y-auto custom-scrollbar space-y-4 text-xs font-mono text-slate-300">
-                <p class="text-slate-400 font-sans">Copy these 2 files into your Electron root folder to turn this explorer into a native desktop app:</p>
-                <div>
-                    <span class="text-blue-400 font-bold">1. package.json</span>
-                    <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 mt-1 text-slate-300">
-{
-  "name": "eagle-mode-flat-explorer",
-  "version": "1.0.0",
-  "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "devDependencies": { "electron": "^28.0.0" }
-}</pre>
-                </div>
-                <div>
-                    <span class="text-blue-400 font-bold">2. main.js</span>
-                    <pre class="bg-slate-950 p-3 rounded-lg border border-slate-800 mt-1 text-slate-300">
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const path = require('path');
-
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 1280, height: 800,
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
-  });
-  win.loadFile('index.html');
-}
-
-app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });</pre>
-                </div>
-            </div>
-            <div class="mt-6 pt-4 border-t border-slate-800 flex justify-end">
-                <button onclick="hideElectronModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium">Close</button>
-            </div>
-        </div>
+    <!-- Drag & Drop Hint Overlay -->
+    <div id="drop-overlay" class="fixed inset-0 bg-blue-950/80 backdrop-blur-md z-50 flex flex-col items-center justify-center border-4 border-dashed border-blue-500 m-6 rounded-3xl opacity-0 pointer-events-none transition-opacity duration-200">
+        <svg class="w-16 h-16 text-blue-400 mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <p class="text-xl font-bold text-white">Drop Folder(s) or Drive(s) to Append to Workspace</p>
+        <p class="text-sm text-blue-300 mt-1">Multi-root 16:9 flat zoom panels</p>
     </div>
 
     <script>
+        let ipcRenderer = null;
+        try {
+            if (typeof require !== 'undefined') {
+                const electron = require('electron');
+                ipcRenderer = electron.ipcRenderer;
+            }
+        } catch(e) {}
+
         const canvas = document.getElementById('viewport-canvas');
         const ctx = canvas.getContext('2d');
         const minimapCanvas = document.getElementById('minimap-canvas');
         const minimapCtx = minimapCanvas.getContext('2d');
 
-        // File Type Extensions Categorization
+        // Categorized File Extensions
         const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'];
         const TEXT_EXTS = ['txt', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'py', 'md', 'c', 'cpp', 'h', 'hpp', 'java', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt', 'sh', 'bat', 'cmd', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'conf', 'log', 'csv', 'sql', 'env'];
         const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'cab', 'tgz', 'iso'];
@@ -180,21 +146,22 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
         const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'];
         const DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
-        // Global State
+        // Helper to check if item is hidden (starts with . or $)
+        function isItemHidden(name) {
+            return name.startsWith('.') || name.startsWith('$');
+        }
+
         const state = {
             transform: { x: window.innerWidth / 2, y: window.innerHeight / 2, scale: 0.85 },
-            targetTransform: null,
             isDragging: false,
             dragStart: { x: 0, y: 0 },
             mouse: { x: 0, y: 0 },
-            hoveredNode: null,
             audioEnabled: false,
-            bgGridEnabled: true,
             rootNode: null,
-            isLoadingFolder: false
+            isLoadingFolder: false,
+            selectedContextNode: null
         };
 
-        // Web Audio Synthesizer (Tone.js)
         let synth = null;
         function initAudio() {
             if (!synth && window.Tone) {
@@ -220,58 +187,38 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
             document.getElementById('audio-btn').textContent = state.audioEnabled ? '🔊' : '🔇';
         }
 
-        function buildFileSystemTree() {
-            // Generate deep 7-level nested filesystem tree with strict 16:9 ratio
-            const root = {
-                id: 'root',
-                name: 'System Workspace Root',
+        function initCanvases() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                renderScene();
+            });
+        }
+
+        function createEmptyWorkspace() {
+            return {
+                id: 'workspace_root',
+                name: 'Multi-Root Workspace',
                 type: 'folder',
                 ext: '',
                 content: '',
                 children: [],
                 x: 0, y: 0, width: 1600, height: 900,
-                depth: 0
+                depth: 0,
+                scanned: true
             };
+        }
 
-            const sampleCode = `import React, { useState, useEffect } from 'react';\n\n// Eagle Mode 16:9 Renderer Component\nexport const FlatViewport = ({ nodeData }) => {\n  const [scale, setScale] = useState(1.0);\n  useEffect(() => {\n    console.log("Rendering node level:", nodeData.name);\n  }, [nodeData]);\n\n  return (\n    <div className="panel-16-9">\n      <h1>{nodeData.name}</h1>\n    </div>\n  );\n};`;
-
-            const createChildren = (parent, count, currentDepth) => {
-                if (currentDepth > 6) return;
-
-                const fileTypesPool = [
-                    'ts', 'jsx', 'json', 'py', 'md', // Text/Code
-                    'png', 'jpg', 'svg',              // Images
-                    'exe', 'dll', 'bin',              // Binaries
-                    'zip', '7z',                      // Archives
-                    'mp4', 'mp3', 'pdf'               // Media
-                ];
-
-                for (let i = 0; i < count; i++) {
-                    const isFolder = i < Math.ceil(count * 0.4);
-                    const ext = isFolder ? '' : fileTypesPool[Math.floor(Math.random() * fileTypesPool.length)];
-                    const name = isFolder ? `Module_Subdir_0${i + 1}` : `Data_Record_${i + 1}.${ext}`;
-
-                    const child = {
-                        id: `${parent.id}_${i}`,
-                        name: name,
-                        type: isFolder ? 'folder' : 'file',
-                        ext: ext,
-                        content: isFolder ? '' : (TEXT_EXTS.includes(ext) ? sampleCode : ''),
-                        children: [],
-                        x: 0, y: 0, width: 1600, height: 900,
-                        depth: currentDepth
-                    };
-
-                    if (isFolder) {
-                        createChildren(child, Math.max(3, 7 - currentDepth), currentDepth + 1);
-                    }
-                    parent.children.push(child);
+        function sortNodeChildren(node) {
+            if (!node || !node.children || node.children.length === 0) return;
+            node.children.sort((a, b) => {
+                if (a.type !== b.type) {
+                    return a.type === 'folder' ? -1 : 1;
                 }
-            };
-
-            createChildren(root, 6, 1);
-            layoutNodeHierarchy(root, 0, 0, 1600, 900, 0);
-            return root;
+                return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+            });
         }
 
         function layoutNodeHierarchy(node, x, y, width, height, depth) {
@@ -282,32 +229,41 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
             node.depth = depth;
 
             if (node.type === 'folder' && node.children.length > 0) {
-                const headerH = height * 0.13;
-                const pad = Math.max(2, width * 0.012);
+                sortNodeChildren(node);
+                const headerH = height * (depth === 0 ? 0.08 : 0.13);
+                // Proportional padding without floor threshold to prevent layout overflow in deep nesting
+                const pad = Math.min(6, Math.max(0.0001, width * 0.008));
 
                 const contentX = x + pad;
                 const contentY = y + headerH + pad;
-                const contentW = width - pad * 2;
-                const contentH = height - headerH - pad * 2;
+                const contentW = Math.max(0.001, width - pad * 2);
+                const contentH = Math.max(0.001, height - headerH - pad * 2);
 
                 const count = node.children.length;
                 const targetAspect = 16 / 9;
 
-                // Find optimal grid arrangement maximizing cell size while strictly maintaining 16:9 aspect ratio
                 let bestCols = 1;
                 let bestRows = count;
-                let maxCellArea = 0;
+                let maxCellArea = -1;
                 let bestCellW = 0;
                 let bestCellH = 0;
 
                 for (let cols = 1; cols <= count; cols++) {
                     const rows = Math.ceil(count / cols);
                     
-                    let cellW = (contentW - (cols - 1) * pad) / cols;
+                    const totalPadW = (cols - 1) * pad;
+                    const totalPadH = (rows - 1) * pad;
+
+                    const availCellW = (contentW - totalPadW) / cols;
+                    const availCellH = (contentH - totalPadH) / rows;
+
+                    if (availCellW <= 0 || availCellH <= 0) continue;
+
+                    let cellW = availCellW;
                     let cellH = cellW / targetAspect;
 
-                    if (rows * cellH + (rows - 1) * pad > contentH) {
-                        cellH = (contentH - (rows - 1) * pad) / rows;
+                    if (cellH > availCellH) {
+                        cellH = availCellH;
                         cellW = cellH * targetAspect;
                     }
 
@@ -323,10 +279,21 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                     }
                 }
 
+                // Fallback for deeply nested or tightly constrained panels
+                if (maxCellArea <= 0 || bestCellW <= 0 || bestCellH <= 0) {
+                    bestCols = Math.ceil(Math.sqrt(count));
+                    bestRows = Math.ceil(count / bestCols);
+                    bestCellW = Math.max(0.001, (contentW - (bestCols - 1) * pad) / bestCols);
+                    bestCellH = Math.max(0.001, bestCellW / targetAspect);
+                    if ((bestRows * bestCellH + (bestRows - 1) * pad) > contentH) {
+                        bestCellH = Math.max(0.001, (contentH - (bestRows - 1) * pad) / bestRows);
+                        bestCellW = Math.max(0.001, bestCellH * targetAspect);
+                    }
+                }
+
                 const gridTotalW = bestCols * bestCellW + (bestCols - 1) * pad;
                 const gridTotalH = bestRows * bestCellH + (bestRows - 1) * pad;
 
-                // Center grid inside folder container
                 const startX = contentX + Math.max(0, (contentW - gridTotalW) / 2);
                 const startY = contentY + Math.max(0, (contentH - gridTotalH) / 2);
 
@@ -337,181 +304,265 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                     const childX = startX + c * (bestCellW + pad);
                     const childY = startY + r * (bestCellH + pad);
 
-                    // Strictly preserve 16:9 for every child panel
                     layoutNodeHierarchy(node.children[i], childX, childY, bestCellW, bestCellH, depth + 1);
                 }
             }
         }
 
-        function initCanvases() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        async function triggerLazyFolderScan(node) {
+            if (node.scanned || node.isScanning) return;
 
-            window.addEventListener('resize', () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+            // Do not expand contents of hidden folders
+            if (node.isHidden) {
+                node.scanned = true;
+                node.children = [];
+                node.isScanning = false;
                 renderScene();
-            });
-        }
+                return;
+            }
 
-        function setupInteractionEvents() {
-            // Mouse Wheel Zooming relative to mouse pointer
-            canvas.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const zoomFactor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
-                
-                const mouseX = e.clientX;
-                const mouseY = e.clientY;
+            node.isScanning = true;
+            renderScene();
 
-                state.transform.x = mouseX - (mouseX - state.transform.x) * zoomFactor;
-                state.transform.y = mouseY - (mouseY - state.transform.y) * zoomFactor;
-                state.transform.scale *= zoomFactor;
+            if (ipcRenderer && node.nativePath) {
+                try {
+                    const res = await ipcRenderer.invoke('fs:readDir', node.nativePath);
+                    if (res.success && res.items) {
+                        node.children = [];
+                        for (const item of res.items) {
+                            const isHidden = item.isHidden || isItemHidden(item.name);
 
-                playSound('zoom');
-                renderScene();
-            }, { passive: false });
-
-            // Dragging / Panning
-            canvas.addEventListener('mousedown', (e) => {
-                if (e.button === 0) {
-                    state.isDragging = true;
-                    state.dragStart.x = e.clientX - state.transform.x;
-                    state.dragStart.y = e.clientY - state.transform.y;
-                }
-            });
-
-            window.addEventListener('mousemove', (e) => {
-                state.mouse.x = e.clientX;
-                state.mouse.y = e.clientY;
-
-                if (state.isDragging) {
-                    state.transform.x = e.clientX - state.dragStart.x;
-                    state.transform.y = e.clientY - state.dragStart.y;
+                            node.children.push({
+                                id: 'node_' + Math.random().toString(36).substr(2, 9),
+                                name: item.name,
+                                nativePath: item.path,
+                                type: item.type,
+                                ext: item.ext,
+                                content: '',
+                                children: [],
+                                x: 0, y: 0, width: 1600, height: 900,
+                                depth: node.depth + 1,
+                                scanned: false,
+                                isScanning: false,
+                                isHidden: isHidden,
+                                parent: node
+                            });
+                        }
+                        sortNodeChildren(node);
+                        node.scanned = true;
+                        
+                        if (state.rootNode) {
+                            layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                        }
+                    }
+                } catch (e) {
+                    console.error('On-demand scan error:', e);
+                } finally {
+                    node.scanned = true;
+                    node.isScanning = false;
                     renderScene();
                 }
-            });
+            } else if (node.directoryHandle) {
+                try {
+                    node.children = [];
+                    for await (const entry of node.directoryHandle.values()) {
+                        const isDir = entry.kind === 'directory';
+                        const ext = !isDir && entry.name.includes('.') ? entry.name.split('.').pop().toLowerCase() : '';
+                        const isHidden = isItemHidden(entry.name);
 
-            window.addEventListener('mouseup', () => {
-                state.isDragging = false;
-            });
-
-            // Drag & Drop Folder functionality
-            window.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                document.getElementById('drop-overlay').classList.remove('opacity-0', 'pointer-events-none');
-            });
-
-            window.addEventListener('dragleave', (e) => {
-                if (e.clientX <= 0 || e.clientY <= 0) {
-                    document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
+                        node.children.push({
+                            id: 'node_' + Math.random().toString(36).substr(2, 9),
+                            name: entry.name,
+                            type: isDir ? 'folder' : 'file',
+                            ext: ext,
+                            content: '',
+                            children: [],
+                            x: 0, y: 0, width: 1600, height: 900,
+                            depth: node.depth + 1,
+                            scanned: false,
+                            isScanning: false,
+                            isHidden: isHidden,
+                            directoryHandle: isDir ? entry : null,
+                            fileHandle: !isDir ? entry : null,
+                            parent: node
+                        });
+                    }
+                    sortNodeChildren(node);
+                    node.scanned = true;
+                    if (state.rootNode) {
+                        layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                    }
+                } catch(e) {
+                    console.error('Handle scan error:', e);
+                } finally {
+                    node.scanned = true;
+                    node.isScanning = false;
+                    renderScene();
                 }
-            });
-
-            window.addEventListener('drop', (e) => {
-                e.preventDefault();
-                document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
-                
-                const items = e.dataTransfer.items;
-                if (items && items.length > 0) {
-                    const files = Array.from(e.dataTransfer.files);
-                    if (files.length > 0) handleFolderFiles(files);
-                }
-            });
+            } else {
+                node.scanned = true;
+                node.isScanning = false;
+                renderScene();
+            }
         }
 
-        function resetZoom() {
-            state.transform = {
-                x: window.innerWidth / 2 - 800 * 0.5,
-                y: window.innerHeight / 2 - 450 * 0.5,
-                scale: 0.5
-            };
+        async function triggerLazyFileContentLoad(node) {
+            if (node.contentLoaded || node.isContentLoading) return;
+            node.isContentLoading = true;
+
+            if (ipcRenderer && node.nativePath && TEXT_EXTS.includes(node.ext)) {
+                try {
+                    const res = await ipcRenderer.invoke('fs:readFilePreview', { filePath: node.nativePath });
+                    if (res.success) {
+                        node.content = res.content;
+                    }
+                } catch(e) {}
+            } else if (node.fileHandle && TEXT_EXTS.includes(node.ext)) {
+                try {
+                    const file = await node.fileHandle.getFile();
+                    node.content = await file.text();
+                } catch(e) {}
+            } else if (node.fileObj && TEXT_EXTS.includes(node.ext)) {
+                try {
+                    node.content = await node.fileObj.text();
+                } catch(e) {}
+            }
+
+            node.contentLoaded = true;
+            node.isContentLoading = false;
             renderScene();
         }
 
         function renderScene() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Background Grid Lines
-            drawBackgroundGrid();
+            // Reset active video flag each frame before traversing tree
+            state.hasActiveVideoPlaying = false;
 
-            // Recursively render root hierarchy
+            // Subtle Background Grid Lines
+            ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
+            ctx.lineWidth = 1;
+            const gridSize = 80 * state.transform.scale;
+            const offsetX = state.transform.x % gridSize;
+            const offsetY = state.transform.y % gridSize;
+
+            ctx.beginPath();
+            for (let x = offsetX; x < canvas.width; x += gridSize) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            for (let y = offsetY; y < canvas.height; y += gridSize) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            // Render Nodes Recursively
             if (state.rootNode) {
                 renderNode(state.rootNode);
             }
 
-            // Draw Minimap
+            // Continuous animation frame render if active videos are playing
+            if (state.hasActiveVideoPlaying) {
+                requestAnimationFrame(renderScene);
+            }
+
+            // Render Radar Minimap
             renderMinimap();
         }
 
-        function drawBackgroundGrid() {
-            ctx.save();
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1;
-            const gridSize = 64 * state.transform.scale;
-
-            if (gridSize > 12) {
-                const offsetX = state.transform.x % gridSize;
-                const offsetY = state.transform.y % gridSize;
-
-                ctx.beginPath();
-                for (let x = offsetX; x < canvas.width; x += gridSize) {
-                    ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
-                }
-                for (let y = offsetY; y < canvas.height; y += gridSize) {
-                    ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
-                }
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-
         function renderNode(node) {
-            // Transform world coords to screen coords
             const screenX = node.x * state.transform.scale + state.transform.x;
             const screenY = node.y * state.transform.scale + state.transform.y;
             const screenW = node.width * state.transform.scale;
             const screenH = node.height * state.transform.scale;
 
-            // Frustum Culling (Skip out-of-screen panels)
+            // Frustum Culling (Skip nodes outside canvas & pause offscreen media)
             if (screenX + screenW < 0 || screenX > canvas.width ||
                 screenY + screenH < 0 || screenY > canvas.height) {
+                if (node.videoObj && !node.videoObj.paused) {
+                    node.videoObj.pause();
+                }
                 return;
             }
 
-            // --- LEVEL OF DETAIL (LOD) THRESHOLDS ---
-            // 1. Ultra Tiny LOD (< 4px): Colored dot
-            if (screenW < 4) {
-                ctx.fillStyle = node.type === 'folder' ? '#3b82f6' : '#64748b';
-                ctx.fillRect(screenX, screenY, Math.max(1, screenW), Math.max(1, screenH));
+            // Depth 0 Workspace container skips rendering container borders
+            if (node.depth === 0) {
+                for (let i = 0; i < node.children.length; i++) {
+                    renderNode(node.children[i]);
+                }
                 return;
             }
 
-            // 2. Low LOD (4px - 30px): Simple Solid Rectangle
-            if (screenW < 30) {
-                ctx.fillStyle = node.type === 'folder' ? '#1e293b' : '#0f172a';
-                ctx.fillRect(screenX, screenY, screenW, screenH);
-                ctx.strokeStyle = '#334155';
-                ctx.lineWidth = 0.5;
-                ctx.strokeRect(screenX, screenY, screenW, screenH);
-                return;
+            // ON-DEMAND LAZY SCAN TRIGGER FOR FOLDERS
+            if (node.type === 'folder' && !node.scanned && !node.isScanning && !node.isHidden && screenW >= 140) {
+                triggerLazyFolderScan(node);
             }
 
-            // 3. Medium & High LOD (screenW >= 30px)
+            // ON-DEMAND FILE PREVIEW TRIGGER FOR FILES
+            if (node.type === 'file' && !node.contentLoaded && !node.isContentLoading && !node.isHidden && screenW >= 140) {
+                triggerLazyFileContentLoad(node);
+            }
+
+            // Clip node rendering inside parent panel bounds
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(screenX, screenY, screenW, screenH);
+            ctx.clip();
+
             const isHovered = state.mouse.x >= screenX && state.mouse.x <= screenX + screenW &&
                               state.mouse.y >= screenY && state.mouse.y <= screenY + screenH;
 
-            ctx.save();
-            
-            // Container Card Background
+            // -------------------------------------------------------------
+            // RULE: Hidden files and Archive files are ALWAYS Icon-only (Level 1)
+            // -------------------------------------------------------------
+            const isArchive = ARCHIVE_EXTS.includes(node.ext);
+            const isForceIconOnly = node.isHidden || isArchive;
+
+            // -------------------------------------------------------------
+            // LEVEL 1: Simplified Icon-Only Card (< 140px or forced icon mode)
+            // -------------------------------------------------------------
+            if (screenW < 140 || isForceIconOnly) {
+                // Clean up hardware-decoding video objects when zoomed out to Level 1
+                if (node.videoObj) {
+                    node.videoObj.pause();
+                    node.videoObj.removeAttribute('src');
+                    node.videoObj.load();
+                    node.videoObj = null;
+                }
+
+                ctx.fillStyle = node.type === 'folder' ? '#1e293b' : '#0f172a';
+                ctx.fillRect(screenX, screenY, screenW, screenH);
+                ctx.strokeStyle = isHovered ? '#3b82f6' : '#334155';
+                ctx.lineWidth = isHovered ? 1.5 : 0.5;
+                ctx.strokeRect(screenX, screenY, screenW, screenH);
+
+                if (screenW > 24) {
+                    ctx.fillStyle = node.type === 'folder' ? '#60a5fa' : (node.isHidden ? '#64748b' : '#94a3b8');
+                    const fontSize = Math.max(9, Math.min(13, screenW * 0.1));
+                    ctx.font = `${fontSize}px "Inter", sans-serif`;
+                    
+                    let icon = node.type === 'folder' ? '📁 ' : '📄 ';
+                    if (node.isHidden) icon = '🔒 ';
+                    else if (isArchive) icon = '📦 ';
+
+                    const label = icon + node.name;
+                    ctx.fillText(label, screenX + 6, screenY + screenH * 0.5 + 4);
+                }
+                ctx.restore();
+                return;
+            }
+
+            // -------------------------------------------------------------
+            // LEVEL 2 & LEVEL 3: Full Panel Frame (>= 140px)
+            // -------------------------------------------------------------
             ctx.fillStyle = node.type === 'folder' ? '#0f172a' : '#090d16';
             ctx.fillRect(screenX, screenY, screenW, screenH);
 
-            // Panel Border
             ctx.strokeStyle = isHovered ? '#3b82f6' : '#1e293b';
             ctx.lineWidth = isHovered ? 2 : 1;
             ctx.strokeRect(screenX, screenY, screenW, screenH);
 
-            // Header Bar
             const headerH = screenH * (node.type === 'folder' ? 0.13 : 0.18);
             ctx.fillStyle = isHovered ? 'rgba(59, 130, 246, 0.15)' : (node.type === 'folder' ? '#1e293b' : '#0f172a');
             ctx.fillRect(screenX, screenY, screenW, headerH);
@@ -522,305 +573,405 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
             ctx.strokeStyle = isHovered ? '#3b82f6' : '#334155';
             ctx.stroke();
 
-            // Header Title Icon Selection based on file extension category
+            // File / Folder Category Icons
             let iconChar = '📁 ';
             if (node.type === 'file') {
                 if (IMAGE_EXTS.includes(node.ext)) iconChar = '🖼️ ';
                 else if (TEXT_EXTS.includes(node.ext)) iconChar = '📄 ';
                 else if (BINARY_EXTS.includes(node.ext)) iconChar = '⚙️ ';
-                else if (ARCHIVE_EXTS.includes(node.ext)) iconChar = '📦 ';
                 else if (VIDEO_EXTS.includes(node.ext)) iconChar = '🎬 ';
                 else if (AUDIO_EXTS.includes(node.ext)) iconChar = '🎵 ';
                 else if (DOC_EXTS.includes(node.ext)) iconChar = '📕 ';
                 else iconChar = '💾 ';
             }
 
-            // Header Title Text
-            const fontSize = Math.max(10, Math.min(16, screenW * 0.036));
-            ctx.font = `600 ${fontSize}px "Inter", sans-serif`;
+            const headerFontSize = Math.max(10, Math.min(18, screenW * 0.032));
+            ctx.font = `600 ${headerFontSize}px "Inter", sans-serif`;
             ctx.fillStyle = isHovered ? '#60a5fa' : (node.type === 'folder' ? '#f8fafc' : '#cbd5e1');
             ctx.fillText(iconChar + node.name, screenX + 10, screenY + headerH * 0.68);
 
-            // Depth / Ratio Badge
+            // LOD Badge Indicator
             if (screenW > 180) {
+                let lodTag = screenW < 550 ? 'LOD 2: Preview' : 'LOD 3: Full';
+                if (node.isScanning || node.isContentLoading) lodTag = '⚡ Loading...';
+                else if (node.type === 'folder' && !node.scanned) lodTag = 'Zoom to Scan';
+
                 ctx.font = '10px "JetBrains Mono"';
-                ctx.fillStyle = '#64748b';
-                ctx.fillText(`L${node.depth} | 16:9`, screenX + screenW - 65, screenY + headerH * 0.68);
+                ctx.fillStyle = (node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b';
+                ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 120, screenY + headerH * 0.68);
             }
 
-            // High LOD Content Preview (w >= 180px)
-            if (screenW >= 180 && node.type === 'file') {
+            // Render File Contents (LOD 2 & LOD 3 according to strict rules)
+            if (node.type === 'file') {
                 renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
             }
 
-            ctx.restore();
-
-            // --- SUBFOLDER DELAYED RENDERING (LOD OPTIMIZATION) ---
-            // Sub-children are only rendered when zoomed in sufficiently (screenW > 120px)
-            if (node.type === 'folder' && screenW > 120) {
+            // Render Subfolders
+            if (node.type === 'folder' && node.children.length > 0 && !node.isHidden) {
                 for (let i = 0; i < node.children.length; i++) {
-                    renderNode(node.children[i]);
+                    const child = node.children[i];
+                    const childScreenW = child.width * state.transform.scale;
+                    // Skip rendering sub-children if their screen width is smaller than 20px for high performance
+                    if (childScreenW >= 20) {
+                        renderNode(child);
+                    }
                 }
             }
+
+            ctx.restore();
         }
 
-        function renderFlatFilePreview(node, ctx, x, y, w, h) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(x, y, w, h);
-            ctx.clip();
+        function renderFlatFilePreview(node, ctx, px, py, pw, ph) {
+            const isLevel3 = pw >= 550;
 
-            const padding = Math.max(8, w * 0.03);
-            const contentX = x + padding;
-            const contentY = y + padding;
-            const contentW = w - padding * 2;
-            const contentH = h - padding * 2;
-
-            const ext = node.ext.toLowerCase();
-
-            // ==========================================
-            // 1. EXECUTABLE & SYSTEM BINARY FILES (.exe, .dll, .bin, .sys, etc.)
-            // ==========================================
-            if (BINARY_EXTS.includes(ext)) {
+            // -------------------------------------------------------------
+            // 1. Text & Code Files
+            // Level 2: ~10 line preview | Level 3: Full text with scaling font
+            // -------------------------------------------------------------
+            if (TEXT_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#0f172a';
-                ctx.fillRect(contentX, contentY, contentW, contentH);
-                ctx.strokeStyle = '#334155';
-                ctx.strokeRect(contentX, contentY, contentW, contentH);
+                ctx.fillRect(px, py, pw, ph);
 
-                const iconSize = Math.max(16, Math.min(48, w * 0.12));
-                ctx.fillStyle = '#f43f5e';
-                ctx.font = `${iconSize}px "Inter", sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('⚙️', contentX + contentW / 2, contentY + contentH / 2 - 10);
+                const sampleText = node.content || `// Content preview for ${node.name}\n// Zoom closer (Level 3) to view full file content.`;
+                const lines = sampleText.split('\n');
+                const displayLines = isLevel3 ? lines : lines.slice(0, 10);
 
-                ctx.font = '600 11px "JetBrains Mono"';
-                ctx.fillStyle = '#fda4af';
-                ctx.fillText(`SYSTEM / BINARY (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
+                const fontSize = isLevel3 ? Math.max(11, Math.min(22, pw * 0.022)) : Math.max(9, Math.min(12, pw * 0.016));
+                const lineHeight = fontSize * 1.35;
                 
-                if (w >= 400 && node.fileObj) {
-                    ctx.font = '10px "Inter"';
-                    ctx.fillStyle = '#94a3b8';
-                    const sizeMB = (node.fileObj.size / (1024 * 1024)).toFixed(2);
-                    ctx.fillText(`Size: ${sizeMB} MB | Executable Data`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 26);
+                ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+                ctx.fillStyle = '#94a3b8';
+
+                let currentY = py + lineHeight + 4;
+                for (let i = 0; i < displayLines.length; i++) {
+                    if (currentY > py + ph - 10) break;
+                    ctx.fillText(displayLines[i].substring(0, 140), px + 12, currentY);
+                    currentY += lineHeight;
                 }
 
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'alphabetic';
-                ctx.restore();
-                return;
-            }
-
-            // ==========================================
-            // 2. ARCHIVE FILES (.zip, .7z, .rar, .tar, etc.)
-            // ==========================================
-            if (ARCHIVE_EXTS.includes(ext)) {
-                ctx.fillStyle = '#0f172a';
-                ctx.fillRect(contentX, contentY, contentW, contentH);
-                ctx.strokeStyle = '#334155';
-                ctx.strokeRect(contentX, contentY, contentW, contentH);
-
-                const iconSize = Math.max(16, Math.min(48, w * 0.12));
-                ctx.fillStyle = '#38bdf8';
-                ctx.font = `${iconSize}px "Inter", sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('📦', contentX + contentW / 2, contentY + contentH / 2 - 10);
-
-                ctx.font = '600 11px "JetBrains Mono"';
-                ctx.fillStyle = '#7dd3fc';
-                ctx.fillText(`ARCHIVE CONTAINER (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
-
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'alphabetic';
-                ctx.restore();
-                return;
-            }
-
-            // ==========================================
-            // 3. MEDIA & DOCUMENT FILES (.mp4, .mp3, .pdf, etc.)
-            // ==========================================
-            if (VIDEO_EXTS.includes(ext) || AUDIO_EXTS.includes(ext) || DOC_EXTS.includes(ext)) {
-                ctx.fillStyle = '#0f172a';
-                ctx.fillRect(contentX, contentY, contentW, contentH);
-                ctx.strokeStyle = '#334155';
-                ctx.strokeRect(contentX, contentY, contentW, contentH);
-
-                const isVid = VIDEO_EXTS.includes(ext);
-                const isAud = AUDIO_EXTS.includes(ext);
-                const iconSymbol = isVid ? '🎬' : (isAud ? '🎵' : '📕');
-                const labelText = isVid ? 'VIDEO' : (isAud ? 'AUDIO' : 'DOCUMENT');
-
-                const iconSize = Math.max(16, Math.min(48, w * 0.12));
-                ctx.font = `${iconSize}px "Inter", sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(iconSymbol, contentX + contentW / 2, contentY + contentH / 2 - 10);
-
-                ctx.font = '600 11px "JetBrains Mono"';
-                ctx.fillStyle = '#a7f3d0';
-                ctx.fillText(`${labelText} FILE (.${ext.toUpperCase()})`, contentX + contentW / 2, contentY + contentH / 2 + iconSize / 2 + 8);
-
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'alphabetic';
-                ctx.restore();
-                return;
-            }
-
-            // ==========================================
-            // 4. IMAGE FILES (Aspect Ratio Preserved & Dynamic LOD)
-            // ==========================================
-            if (IMAGE_EXTS.includes(ext)) {
-                // Lazy load image element
-                if (node.fileObj && !node.contentLoaded && !node.loading) {
-                    node.loading = true;
-                    node.mediaUrl = URL.createObjectURL(node.fileObj);
-                    const img = new Image();
-                    img.onload = () => { node.imgElement = img; node.contentLoaded = true; node.loading = false; renderScene(); };
-                    img.onerror = () => { node.loading = false; };
-                    img.src = node.mediaUrl;
+                if (!isLevel3 && lines.length > 10) {
+                    ctx.font = '500 11px "Inter", sans-serif';
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText(`... ${lines.length - 10} more lines (Zoom to Level 3 for full text)`, px + 12, py + ph - 10);
                 }
 
-                if (node.imgElement) {
-                    try {
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = w >= 600 ? 'high' : 'low';
+            // -------------------------------------------------------------
+            // 2. Image Files
+            // Level 2: Low-res / un-smoothed preview | Level 3: High quality
+            // -------------------------------------------------------------
+            } else if (IMAGE_EXTS.includes(node.ext)) {
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(px, py, pw, ph);
 
-                        const imgW = node.imgElement.width;
-                        const imgH = node.imgElement.height;
-                        const imgAspect = imgW / imgH;
-                        const containerAspect = contentW / contentH;
+                if (!node.imgObj && node.nativePath) {
+                    node.imgObj = new Image();
+                    node.imgObj.src = 'file://' + node.nativePath;
+                    node.imgObj.onload = () => renderScene();
+                }
 
-                        let drawW, drawH, drawX, drawY;
-                        // Preserve original image aspect ratio within container
-                        if (imgAspect > containerAspect) {
-                            drawW = contentW; drawH = contentW / imgAspect;
-                            drawX = contentX; drawY = contentY + (contentH - drawH) / 2;
-                        } else {
-                            drawH = contentH; drawW = contentH * imgAspect;
-                            drawX = contentX + (contentW - drawW) / 2; drawY = contentY;
-                        }
+                if (node.imgObj && node.imgObj.complete && node.imgObj.naturalWidth > 0) {
+                    ctx.save();
+                    ctx.imageSmoothingEnabled = isLevel3; // Off for LOD 2 fast render, ON for LOD 3 high-res
 
-                        ctx.fillStyle = '#050811';
-                        ctx.fillRect(contentX, contentY, contentW, contentH);
-                        ctx.drawImage(node.imgElement, drawX, drawY, drawW, drawH);
-                        ctx.strokeStyle = '#1e293b';
-                        ctx.strokeRect(drawX, drawY, drawW, drawH);
-                    } catch(e) {}
+                    const imgRatio = node.imgObj.naturalWidth / node.imgObj.naturalHeight;
+                    const panelRatio = pw / ph;
+                    let dw = pw;
+                    let dh = ph;
+                    let dx = px;
+                    let dy = py;
+
+                    if (imgRatio > panelRatio) {
+                        dh = pw / imgRatio;
+                        dy = py + (ph - dh) / 2;
+                    } else {
+                        dw = ph * imgRatio;
+                        dx = px + (pw - dw) / 2;
+                    }
+
+                    ctx.drawImage(node.imgObj, dx, dy, dw, dh);
+                    ctx.restore();
                 } else {
-                    ctx.fillStyle = '#0f172a';
-                    ctx.fillRect(contentX, contentY, contentW, contentH);
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = '11px "JetBrains Mono"';
-                    ctx.fillText(`IMAGE PREVIEW: ${node.name}`, contentX + 12, contentY + 22);
-                }
-                ctx.restore();
-                return;
-            }
-
-            // ==========================================
-            // 5. TEXT & CODE FILES (First 10 Lines Preview -> Full Text LOD)
-            // ==========================================
-            // Lazy load text file slice
-            if (node.fileObj && !node.contentLoaded && !node.loading && (TEXT_EXTS.includes(ext) || ext === '')) {
-                node.loading = true;
-                const reader = new FileReader();
-                const blobSlice = node.fileObj.slice(0, 51200); // 50KB preview slice
-                reader.onload = (e) => { node.content = e.target.result; node.contentLoaded = true; node.loading = false; renderScene(); };
-                reader.onerror = () => { node.loading = false; };
-                reader.readAsText(blobSlice);
-            }
-
-            const fontSize = Math.max(10, Math.min(16, w * 0.026));
-            ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-
-            const allLines = (node.content || '').split('\n');
-            const isDeepZoom = w >= 600;
-            const lines = isDeepZoom ? allLines : allLines.slice(0, 10);
-            const maxLines = isDeepZoom ? Math.floor(contentH / (fontSize * 1.35)) : 10;
-
-            for (let i = 0; i < Math.min(lines.length, maxLines); i++) {
-                const lineY = contentY + (i + 1) * (fontSize * 1.35);
-                const lineText = lines[i];
-
-                if (lineText.includes('class') || lineText.includes('import') || lineText.includes('package')) {
-                    ctx.fillStyle = '#60a5fa';
-                } else if (lineText.includes('export') || lineText.includes('function') || lineText.includes('const')) {
-                    ctx.fillStyle = '#34d399';
-                } else if (lineText.startsWith('//') || lineText.startsWith('/*') || lineText.startsWith('#')) {
                     ctx.fillStyle = '#64748b';
-                } else {
-                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                    ctx.fillText(`[IMAGE PREVIEW] ${node.name}`, px + 12, py + ph / 2);
                 }
 
-                ctx.fillText(lineText, contentX, lineY);
-            }
+            // -------------------------------------------------------------
+            // 3. Video Files
+            // Level 2: Still frame preview | Level 3: Live preview playback
+            // -------------------------------------------------------------
+            } else if (VIDEO_EXTS.includes(node.ext)) {
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(px, py, pw, ph);
 
-            if (!isDeepZoom && allLines.length > 10) {
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                ctx.fillRect(contentX, contentY + contentH - 22, contentW, 22);
-                ctx.fillStyle = '#38bdf8';
-                ctx.font = '10px "JetBrains Mono"';
-                ctx.fillText(`[Preview: 10 of ${allLines.length} lines - Zoom in for full text]`, contentX + 6, contentY + contentH - 7);
-            }
+                if (!node.videoObj && node.nativePath) {
+                    node.videoObj = document.createElement('video');
+                    node.videoObj.src = 'file://' + node.nativePath;
+                    node.videoObj.muted = true;
+                    node.videoObj.loop = true;
+                    node.videoObj.onloadeddata = () => renderScene();
+                }
 
-            ctx.restore();
+                if (node.videoObj && node.videoObj.readyState >= 2) {
+                    if (isLevel3) {
+                        if (node.videoObj.paused) node.videoObj.play();
+                        state.hasActiveVideoPlaying = true;
+                        ctx.drawImage(node.videoObj, px, py, pw, ph);
+                    } else {
+                        if (!node.videoObj.paused) node.videoObj.pause();
+                        // Render still frame for Level 2
+                        ctx.drawImage(node.videoObj, px, py, pw, ph);
+
+                        // Overlay "STILL FRAME" indicator badge for Level 2
+                        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+                        ctx.fillRect(px + pw - 90, py + ph - 24, 80, 18);
+                        ctx.fillStyle = '#38bdf8';
+                        ctx.font = '10px "JetBrains Mono"';
+                        ctx.fillText('STILL FRAME', px + pw - 84, py + ph - 12);
+                    }
+                } else {
+                    const iconSize = Math.max(20, Math.min(48, pw * 0.08));
+                    ctx.font = `${iconSize}px "Inter", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🎬', px + pw / 2, py + ph / 2 - 10);
+                    ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText(isLevel3 ? 'LOADING VIDEO...' : 'VIDEO STILL PREVIEW', px + pw / 2, py + ph / 2 + 20);
+                    ctx.textAlign = 'left';
+                }
+
+            // -------------------------------------------------------------
+            // 4. Microsoft Office & Document Files (.docx, .xlsx, .pptx, .pdf)
+            // Level 2: Summary card | Level 3: Detailed structural info card
+            // -------------------------------------------------------------
+            } else if (DOC_EXTS.includes(node.ext)) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(px, py, pw, ph);
+
+                const iconSize = Math.max(20, Math.min(54, pw * 0.1));
+                let docIcon = '📕';
+                let docType = 'DOCUMENT';
+                if (['xls', 'xlsx', 'csv'].includes(node.ext)) { docIcon = '📊'; docType = 'SPREADSHEET'; }
+                else if (['ppt', 'pptx'].includes(node.ext)) { docIcon = '📙'; docType = 'PRESENTATION'; }
+                else if (['doc', 'docx'].includes(node.ext)) { docIcon = '📘'; docType = 'WORD DOCUMENT'; }
+
+                if (isLevel3) {
+                    // Level 3 Detailed Card Layout
+                    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+                    ctx.fillRect(px + 16, py + 16, pw - 32, ph - 32);
+
+                    ctx.font = `${iconSize}px "Inter", sans-serif`;
+                    ctx.fillText(docIcon, px + 32, py + 32 + iconSize);
+
+                    const titleSize = Math.max(12, Math.min(20, pw * 0.025));
+                    ctx.font = `600 ${titleSize}px "Inter", sans-serif`;
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillText(node.name, px + 40 + iconSize, py + 40);
+
+                    ctx.font = `${Math.max(10, pw * 0.018)}px "JetBrains Mono"`;
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText(`FORMAT: Microsoft Office ${docType}`, px + 40 + iconSize, py + 40 + titleSize * 1.5);
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(`STATUS: Verified Document Container`, px + 40 + iconSize, py + 40 + titleSize * 2.8);
+                } else {
+                    // Level 2 Preview Card
+                    ctx.font = `${iconSize}px "Inter", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(docIcon, px + pw / 2, py + ph / 2 - 10);
+                    ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText(`${docType} (.${node.ext.toUpperCase()})`, px + pw / 2, py + ph / 2 + 20);
+                    ctx.textAlign = 'left';
+                }
+
+            // -------------------------------------------------------------
+            // 5. Binary Executables & General Fallbacks
+            // -------------------------------------------------------------
+            } else {
+                ctx.fillStyle = '#090d16';
+                ctx.fillRect(px, py, pw, ph);
+
+                const iconSize = Math.max(20, Math.min(48, pw * 0.08));
+                ctx.font = `${iconSize}px "Inter", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('⚙️', px + pw / 2, py + ph / 2 - 10);
+                ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                ctx.fillStyle = '#64748b';
+                ctx.fillText(`BINARY DATA (.${node.ext.toUpperCase()})`, px + pw / 2, py + ph / 2 + 20);
+                ctx.textAlign = 'left';
+            }
         }
 
         function renderMinimap() {
             minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-            minimapCtx.fillStyle = '#090d16';
+            minimapCtx.fillStyle = '#020617';
             minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-            // Draw current viewport frame in minimap
-            const vpX = (-state.transform.x) * (minimapCanvas.width / canvas.width);
-            const vpY = (-state.transform.y) * (minimapCanvas.height / canvas.height);
-            const vpW = canvas.width * (minimapCanvas.width / (1600 * state.transform.scale));
-            const vpH = canvas.height * (minimapCanvas.height / (900 * state.transform.scale));
+            const mapScale = 0.07;
+            const mapOffsetX = minimapCanvas.width / 2 + (state.transform.x - canvas.width / 2) * mapScale;
+            const mapOffsetY = minimapCanvas.height / 2 + (state.transform.y - canvas.height / 2) * mapScale;
+
+            if (state.rootNode && state.rootNode.children) {
+                for (const rootChild of state.rootNode.children) {
+                    const rx = rootChild.x * mapScale * state.transform.scale + mapOffsetX;
+                    const ry = rootChild.y * mapScale * state.transform.scale + mapOffsetY;
+                    const rw = rootChild.width * mapScale * state.transform.scale;
+                    const rh = rootChild.height * mapScale * state.transform.scale;
+
+                    minimapCtx.fillStyle = 'rgba(59, 130, 246, 0.4)';
+                    minimapCtx.fillRect(rx, ry, rw, rh);
+                    minimapCtx.strokeStyle = '#3b82f6';
+                    minimapCtx.strokeRect(rx, ry, rw, rh);
+                }
+            }
+
+            // Viewport Box
+            const vw = canvas.width * mapScale;
+            const vh = canvas.height * mapScale;
+            const vx = (canvas.width / 2) * mapScale + mapOffsetX - vw / 2;
+            const vy = (canvas.height / 2) * mapScale + mapOffsetY - vh / 2;
 
             minimapCtx.strokeStyle = '#38bdf8';
             minimapCtx.lineWidth = 1.5;
-            minimapCtx.strokeRect(vpX, vpY, vpW, vpH);
+            minimapCtx.strokeRect(vx, vy, vw, vh);
 
-            document.getElementById('zoom-level-indicator').textContent = `${Math.round(state.transform.scale * 100)}%`;
+            document.getElementById('zoom-level-indicator').textContent = Math.round(state.transform.scale * 100) + '%';
         }
 
-        function triggerFolderSelect() {
-            document.getElementById('folder-input').click();
-        }
-
-        function handleFolderSelect(event) {
-            const files = Array.from(event.target.files || []);
-            if (files.length > 0) handleFolderFiles(files);
-        }
-
-        function handleFolderFiles(fileList) {
-            document.getElementById('status-text').textContent = `Scanning ${fileList.length} items...`;
+        async function appendNativePathToWorkspace(dirPath, autoSave = true) {
+            document.getElementById('status-text').textContent = `Adding: ${dirPath}...`;
             state.isLoadingFolder = true;
 
-            buildTreeFromFileListAsync(fileList, (newRoot) => {
-                if (newRoot) {
-                    state.rootNode = newRoot;
-                    resetZoom();
-                    playSound('click');
-                    document.getElementById('status-text').textContent = `Loaded ${fileList.length} items successfully`;
+            const folderName = dirPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() || dirPath;
+            
+            const rootItem = {
+                id: 'native_root_' + Math.random().toString(36).substr(2, 9),
+                name: folderName,
+                nativePath: dirPath,
+                type: 'folder',
+                ext: '',
+                children: [],
+                x: 0, y: 0, width: 1600, height: 900,
+                depth: 1,
+                scanned: false,
+                isScanning: false
+            };
+
+            state.rootNode.children.push(rootItem);
+            layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+            resetZoom();
+            playSound('click');
+
+            await triggerLazyFolderScan(rootItem);
+
+            state.isLoadingFolder = false;
+            updateStatusText();
+
+            if (autoSave) saveWorkspaceState();
+        }
+
+        async function appendDirectoryHandleToWorkspace(handle) {
+            document.getElementById('status-text').textContent = `Adding: ${handle.name}...`;
+            state.isLoadingFolder = true;
+
+            const rootItem = {
+                id: 'handle_root_' + Math.random().toString(36).substr(2, 9),
+                name: handle.name,
+                directoryHandle: handle,
+                type: 'folder',
+                ext: '',
+                children: [],
+                x: 0, y: 0, width: 1600, height: 900,
+                depth: 1,
+                scanned: false,
+                isScanning: false
+            };
+
+            state.rootNode.children.push(rootItem);
+            layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+            resetZoom();
+            playSound('click');
+
+            await triggerLazyFolderScan(rootItem);
+            state.isLoadingFolder = false;
+            updateStatusText();
+        }
+
+        function saveWorkspaceState() {
+            if (!state.rootNode) return;
+            const nativePaths = state.rootNode.children
+                .filter(child => child.nativePath)
+                .map(child => child.nativePath);
+
+            if (ipcRenderer) {
+                ipcRenderer.invoke('store:saveRoots', nativePaths);
+            }
+        }
+
+        async function restoreSavedWorkspace() {
+            if (ipcRenderer) {
+                try {
+                    const res = await ipcRenderer.invoke('store:getRoots');
+                    if (res.success && res.paths && res.paths.length > 0) {
+                        for (const dirPath of res.paths) {
+                            await appendNativePathToWorkspace(dirPath, false);
+                        }
+                    }
+                } catch(e) {
+                    console.error('Failed to restore roots:', e);
                 }
+            }
+        }
+
+        async function triggerFolderSelect() {
+            if (ipcRenderer) {
+                try {
+                    const res = await ipcRenderer.invoke('dialog:openDirectory');
+                    if (res && !res.canceled && res.filePaths && res.filePaths.length > 0) {
+                        for (const dirPath of res.filePaths) {
+                            await appendNativePathToWorkspace(dirPath, true);
+                        }
+                    }
+                } catch(e) {
+                    console.error('Error invoking openDirectory:', e);
+                }
+            } else {
+                const input = document.getElementById('folder-input');
+                if (input) input.click();
+            }
+        }
+
+        function handleBrowserFolderSelect(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length > 0) handleBrowserFolderFiles(files);
+        }
+
+        function handleBrowserFolderFiles(fileList) {
+            document.getElementById('status-text').textContent = `Indexing ${fileList.length} items...`;
+            state.isLoadingFolder = true;
+
+            const rootItem = {
+                id: 'browser_root_' + Date.now(),
+                name: 'Loaded Folder (' + fileList.length + ' files)',
+                type: 'folder',
+                ext: '',
+                children: [],
+                x: 0, y: 0, width: 1600, height: 900,
+                depth: 1,
+                scanned: true
+            };
+
+            buildTreeFromFileListAsync(fileList, rootItem, () => {
+                state.rootNode.children.push(rootItem);
+                layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                resetZoom();
+                playSound('click');
                 state.isLoadingFolder = false;
+                updateStatusText();
             });
         }
 
-        function buildTreeFromFileListAsync(fileList, callback) {
-            const root = {
-                id: 'workspace_root_' + Date.now(),
-                name: 'Workspace Directory',
-                type: 'folder',
-                ext: '',
-                content: '',
-                children: [],
-                x: 0, y: 0, width: 1600, height: 900,
-                depth: 0
-            };
-
+        function buildTreeFromFileListAsync(fileList, rootNode, callback) {
             const total = fileList.length;
             let index = 0;
             const chunkSize = 400;
@@ -830,8 +981,9 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                 
                 for (; index < end; index++) {
                     const file = fileList[index];
-                    const pathParts = (file.webkitRelativePath || file.name).split('/');
-                    let currentFolder = root;
+                    const rawPath = file.webkitRelativePath || file.name;
+                    const pathParts = rawPath.replace(/\\/g, '/').split('/');
+                    let currentFolder = rootNode;
 
                     for (let i = 0; i < pathParts.length - 1; i++) {
                         const dirName = pathParts[i];
@@ -846,7 +998,8 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                                 content: '',
                                 children: [],
                                 x: 0, y: 0, width: 1600, height: 900,
-                                depth: 0
+                                depth: currentFolder.depth + 1,
+                                isHidden: isItemHidden(dirName)
                             };
                             currentFolder.children.push(existingDir);
                         }
@@ -865,7 +1018,8 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                         fileObj: file,
                         children: [],
                         x: 0, y: 0, width: 1600, height: 900,
-                        depth: 0
+                        depth: currentFolder.depth + 1,
+                        isHidden: isItemHidden(fileName)
                     });
                 }
 
@@ -874,29 +1028,220 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
                 if (index < total) {
                     requestAnimationFrame(processChunk);
                 } else {
-                    layoutNodeHierarchy(root, 0, 0, 1600, 900, 0);
-                    callback(root);
+                    sortNodeChildren(rootNode);
+                    callback();
                 }
             }
 
             processChunk();
         }
 
-        function showElectronModal() {
-            document.getElementById('electron-modal').classList.remove('hidden');
+        function setupInteractionEvents() {
+            // Mouse Wheel Zooming around cursor
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+                
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+
+                state.transform.x = mouseX - (mouseX - state.transform.x) * zoomFactor;
+                state.transform.y = mouseY - (mouseY - state.transform.y) * zoomFactor;
+                state.transform.scale *= zoomFactor;
+
+                playSound('zoom');
+                renderScene();
+            }, { passive: false });
+
+            // Panning
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    state.isDragging = true;
+                    state.dragStart.x = e.clientX - state.transform.x;
+                    state.dragStart.y = e.clientY - state.transform.y;
+                    hideContextMenu();
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                state.mouse.x = e.clientX;
+                state.mouse.y = e.clientY;
+
+                if (state.isDragging) {
+                    state.transform.x = e.clientX - state.dragStart.x;
+                    state.transform.y = e.clientY - state.dragStart.y;
+                }
+                renderScene();
+            });
+
+            window.addEventListener('mouseup', () => {
+                state.isDragging = false;
+            });
+
+            // Context Menu Right Click
+            canvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const clickedNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
+                if (clickedNode && clickedNode.depth === 1) {
+                    state.selectedContextNode = clickedNode;
+                    showContextMenu(e.clientX, e.clientY, clickedNode.name);
+                } else {
+                    hideContextMenu();
+                }
+            });
+
+            // Drag & Drop Folders
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                document.getElementById('drop-overlay').classList.remove('opacity-0', 'pointer-events-none');
+            });
+
+            window.addEventListener('dragleave', (e) => {
+                if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+                    document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
+                }
+            });
+
+            window.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                document.getElementById('drop-overlay').classList.add('opacity-0', 'pointer-events-none');
+                
+                const items = e.dataTransfer.items;
+                if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (item.kind === 'file') {
+                            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                            if (entry && entry.isDirectory) {
+                                if (item.getAsFileSystemHandle) {
+                                    const handle = await item.getAsFileSystemHandle();
+                                    if (handle) await appendDirectoryHandleToWorkspace(handle);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
-        function hideElectronModal() {
-            document.getElementById('electron-modal').classList.add('hidden');
+        function findNodeAtPosition(node, mx, my) {
+            const screenX = node.x * state.transform.scale + state.transform.x;
+            const screenY = node.y * state.transform.scale + state.transform.y;
+            const screenW = node.width * state.transform.scale;
+            const screenH = node.height * state.transform.scale;
+
+            if (mx >= screenX && mx <= screenX + screenW && my >= screenY && my <= screenY + screenH) {
+                if (node.children && node.children.length > 0) {
+                    for (const child of node.children) {
+                        const found = findNodeAtPosition(child, mx, my);
+                        if (found) return found;
+                    }
+                }
+                return node;
+            }
+            return null;
         }
 
-        // Initialize App on Window Load
-        window.onload = function() {
+        function showContextMenu(x, y, name) {
+            const menu = document.getElementById('context-menu');
+            document.getElementById('ctx-item-name').textContent = name;
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
+            menu.classList.remove('hidden');
+        }
+
+        function hideContextMenu() {
+            document.getElementById('context-menu').classList.add('hidden');
+            state.selectedContextNode = null;
+        }
+
+        function removeSelectedRoot() {
+            if (state.selectedContextNode && state.rootNode) {
+                state.rootNode.children = state.rootNode.children.filter(c => c.id !== state.selectedContextNode.id);
+                layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                hideContextMenu();
+                resetZoom();
+                renderScene();
+                updateStatusText();
+                saveWorkspaceState();
+            }
+        }
+
+        function resetZoom() {
+            state.transform.scale = 0.85;
+            state.transform.x = window.innerWidth / 2 - 800 * state.transform.scale;
+            state.transform.y = window.innerHeight / 2 - 450 * state.transform.scale;
+            renderScene();
+        }
+
+        function updateStatusText() {
+            const count = state.rootNode ? state.rootNode.children.length : 0;
+            document.getElementById('status-text').textContent = count === 0 ? 'Empty Workspace - Click "+ Add Folder / Drive"' : `Active Roots: ${count} item(s)`;
+        }
+
+        function buildDemoTree() {
+            const workspace = createEmptyWorkspace();
+            const demoRoot = {
+                id: 'demo_root',
+                name: 'Sample Project Space',
+                type: 'folder',
+                ext: '',
+                children: [
+                    {
+                        id: 'demo_best',
+                        name: '$BEST',
+                        type: 'folder',
+                        ext: '',
+                        children: [
+                            { id: 'b1', name: 'config.json', type: 'file', ext: 'json', content: '{\n  "status": "active",\n  "system": "Eagle Mode"\n}' },
+                            { id: 'b2', name: 'run.sh', type: 'file', ext: 'sh', content: '#!/bin/bash\necho "Running $BEST module..."' }
+                        ]
+                    },
+                    {
+                        id: 'demo_src',
+                        name: 'src',
+                        type: 'folder',
+                        ext: '',
+                        children: [
+                            { id: 'f1', name: 'App.jsx', type: 'file', ext: 'jsx', content: 'export default function App() {\n  return (\n    <div className="p-4">\n      <h1 className="text-xl font-bold">Eagle Mode</h1>\n    </div>\n  );\n}' },
+                            { id: 'f2', name: 'main.js', type: 'file', ext: 'js', content: 'const { app, BrowserWindow } = require("electron");\napp.on("ready", () => console.log("App ready"));' },
+                            { id: 'f3', name: 'styles.css', type: 'file', ext: 'css', content: 'body { margin: 0; background: #090d16; color: #fff; }' }
+                        ]
+                    },
+                    {
+                        id: 'demo_assets',
+                        name: 'assets',
+                        type: 'folder',
+                        ext: '',
+                        children: [
+                            { id: 'f4', name: 'logo.png', type: 'file', ext: 'png' },
+                            { id: 'f5', name: 'archive.zip', type: 'file', ext: 'zip' },
+                            { id: 'f6', name: 'setup.exe', type: 'file', ext: 'exe' }
+                        ]
+                    },
+                    { id: 'f7', name: 'README.md', type: 'file', ext: 'md', content: '# Eagle Mode Flat Explorer\nDeep 16:9 flat zoom viewport file system explorer.' },
+                    { id: 'f8', name: 'package.json', type: 'file', ext: 'json', content: '{\n  "name": "eagle-mode-explorer",\n  "version": "1.0.0"\n}' }
+                ],
+                depth: 1,
+                scanned: true
+            };
+
+            workspace.children.push(demoRoot);
+            layoutNodeHierarchy(workspace, 0, 0, 1600, 900, 0);
+            return workspace;
+        }
+
+        // App Entry Point
+        window.onload = async function() {
             initCanvases();
-            state.rootNode = buildFileSystemTree();
+            state.rootNode = createEmptyWorkspace();
             resetZoom();
             setupInteractionEvents();
             renderScene();
+            updateStatusText();
+
+            // Auto-restore saved roots from previous session
+            await restoreSavedWorkspace();
         };
     </script>
 </body>
