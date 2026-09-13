@@ -641,7 +641,7 @@
 
             // -------------------------------------------------------------
             // 1. Text & Code Files
-            // Level 2: ~10 line preview | Level 3: Full text with scaling font
+            // Level 2: ~10 line preview | Level 3: Full text fitted into panel
             // -------------------------------------------------------------
             if (TEXT_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#0f172a';
@@ -649,9 +649,35 @@
 
                 const sampleText = node.content || `// Content preview for ${node.name}\n// Zoom closer (Level 3) to view full file content.`;
                 const lines = sampleText.split('\n');
-                const displayLines = isLevel3 ? lines : lines.slice(0, 10);
 
-                const fontSize = isLevel3 ? Math.max(11, Math.min(22, pw * 0.022)) : Math.max(9, Math.min(12, pw * 0.016));
+                if (isLevel3) {
+                    const totalLines = lines.length || 1;
+                    const padX = Math.max(6, pw * 0.015);
+                    const padY = Math.max(6, ph * 0.015);
+                    const availH = Math.max(1, ph - padY * 2);
+
+                    // Dynamically fit all lines into the panel height
+                    let calcLineH = availH / totalLines;
+                    let calcFontS = calcLineH * 0.82;
+
+                    // Cap maximum font size for short text files so text stays proportional
+                    const maxFontS = Math.max(12, Math.min(28, pw * 0.025));
+                    if (calcFontS > maxFontS) {
+                        calcFontS = maxFontS;
+                        calcLineH = calcFontS * 1.35;
+                    }
+
+                    ctx.font = `${calcFontS}px "JetBrains Mono", monospace`;
+                    ctx.fillStyle = '#94a3b8';
+
+                    let currentY = py + padY + calcFontS;
+                    for (let i = 0; i < lines.length; i++) {
+                        ctx.fillText(lines[i], px + padX, currentY);
+                        currentY += calcLineH;
+                    }
+                } else {
+                    const displayLines = lines.slice(0, 10);
+                    const fontSize = Math.max(9, Math.min(12, pw * 0.016));
                 const lineHeight = fontSize * 1.35;
                 
                 ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
@@ -664,10 +690,11 @@
                     currentY += lineHeight;
                 }
 
-                if (!isLevel3 && lines.length > 10) {
+                    if (lines.length > 10) {
                     ctx.font = '500 11px "Inter", sans-serif';
                     ctx.fillStyle = '#38bdf8';
                     ctx.fillText(`... ${lines.length - 10} more lines (Zoom to Level 3 for full text)`, px + 12, py + ph - 10);
+                    }
                 }
 
             // -------------------------------------------------------------
