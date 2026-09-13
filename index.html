@@ -9,10 +9,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600" rel="stylesheet">
     
     <!-- Tone.js for subtle sound effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- PDF.js for rendering PDF documents -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <style>
         body, html {
@@ -136,6 +138,10 @@
         const ctx = canvas.getContext('2d');
         const minimapCanvas = document.getElementById('minimap-canvas');
         const minimapCtx = minimapCanvas.getContext('2d');
+
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
 
         // Categorized File Extensions
         const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'];
@@ -431,6 +437,56 @@
             node.contentLoaded = true;
             node.isContentLoading = false;
             renderScene();
+        }
+
+        async function triggerLazyPdfLoad(node) {
+            if (node.pdfDoc || node.isPdfLoading || !window.pdfjsLib) return;
+            node.isPdfLoading = true;
+            node.currentPage = node.currentPage || 1;
+
+            try {
+                let loadingTask = null;
+                if (ipcRenderer && node.nativePath) {
+                    loadingTask = pdfjsLib.getDocument('file://' + node.nativePath.replace(/\\/g, '/'));
+                } else if (node.fileHandle) {
+                    const file = await node.fileHandle.getFile();
+                    const buffer = await file.arrayBuffer();
+                    loadingTask = pdfjsLib.getDocument({ data: buffer });
+                } else if (node.fileObj) {
+                    const buffer = await node.fileObj.arrayBuffer();
+                    loadingTask = pdfjsLib.getDocument({ data: buffer });
+                }
+
+                if (loadingTask) {
+                    node.pdfDoc = await loadingTask.promise;
+                    node.totalPages = node.pdfDoc.numPages;
+                    await renderPdfPageToCache(node, node.currentPage);
+                }
+            } catch (e) {
+                console.error('PDF load error:', e);
+                node.pdfError = true;
+            } finally {
+                node.isPdfLoading = false;
+                renderScene();
+            }
+        }
+
+        async function renderPdfPageToCache(node, pageNum) {
+            if (!node.pdfDoc) return;
+            try {
+                const page = await node.pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = viewport.width;
+                offCanvas.height = viewport.height;
+                const offCtx = offCanvas.getContext('2d');
+                await page.render({ canvasContext: offCtx, viewport: viewport }).promise;
+                node.pdfPageCanvas = offCanvas;
+                node.cachedPageNum = pageNum;
+                renderScene();
+            } catch(e) {
+                console.error('PDF page render error:', e);
+            }
         }
 
         function renderScene() {
@@ -784,8 +840,77 @@
 
             // -------------------------------------------------------------
             // 4. Microsoft Office & Document Files (.docx, .xlsx, .pptx, .pdf)
-            // Level 2: Summary card | Level 3: Detailed structural info card
+            // Level 2: Summary card / 1st page preview | Level 3: Detailed view & Page flip
             // -------------------------------------------------------------
+            } else if (node.ext === 'pdf') {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(px, py, pw, ph);
+
+                // Load PDF data on demand for both Level 2 and Level 3
+                    if (!node.pdfDoc && !node.isPdfLoading && !node.pdfError) {
+                        triggerLazyPdfLoad(node);
+                    }
+
+                if (node.pdfPageCanvas) {
+                    const targetPage = isLevel3 ? (node.currentPage || 1) : 1;
+                    if (node.cachedPageNum !== targetPage && isLevel3) {
+                        renderPdfPageToCache(node, targetPage);
+                    }
+
+                        const imgRatio = node.pdfPageCanvas.width / node.pdfPageCanvas.height;
+                        const panelRatio = pw / ph;
+                        let dw = pw, dh = ph, dx = px, dy = py;
+
+                        if (imgRatio > panelRatio) {
+                            dh = pw / imgRatio;
+                            dy = py + (ph - dh) / 2;
+                        } else {
+                            dw = ph * imgRatio;
+                            dx = px + (pw - dw) / 2;
+                        }
+
+                        ctx.save();
+                    // Level 2: Fast low-res rendering (smoothing off) | Level 3: High resolution (smoothing on)
+                    ctx.imageSmoothingEnabled = isLevel3;
+                        ctx.drawImage(node.pdfPageCanvas, dx, dy, dw, dh);
+                        ctx.restore();
+
+                    if (isLevel3) {
+                        // Interactive Page Control Overlay Badge for Level 3
+                        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                        ctx.fillRect(px + pw / 2 - 110, py + ph - 28, 220, 22);
+                        ctx.strokeStyle = '#38bdf8';
+                        ctx.strokeRect(px + pw / 2 - 110, py + ph - 28, 220, 22);
+                        ctx.fillStyle = '#f8fafc';
+                        ctx.font = '600 11px "JetBrains Mono", monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(`Page ${node.currentPage || 1} / ${node.totalPages || 1} (Ctrl + Wheel)`, px + pw / 2, py + ph - 13);
+                        ctx.textAlign = 'left';
+                    } else {
+                        // Low-Res Preview Badge for Level 2
+                        ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+                        ctx.fillRect(px + pw - 95, py + ph - 24, 85, 18);
+                        ctx.fillStyle = '#38bdf8';
+                        ctx.font = '10px "JetBrains Mono"';
+                        ctx.fillText('PDF PREVIEW', px + pw - 89, py + ph - 12);
+                    }
+                    } else if (node.isPdfLoading) {
+                        ctx.fillStyle = '#38bdf8';
+                    ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                        ctx.textAlign = 'center';
+                    ctx.fillText('LOADING PDF...', px + pw / 2, py + ph / 2);
+                        ctx.textAlign = 'left';
+                } else {
+                    const iconSize = Math.max(20, Math.min(54, pw * 0.1));
+                    ctx.font = `${iconSize}px "Inter", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('📕', px + pw / 2, py + ph / 2 - 10);
+                    ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText('PDF DOCUMENT (.PDF)', px + pw / 2, py + ph / 2 + 20);
+                    ctx.textAlign = 'left';
+                }
+
             } else if (DOC_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#0f172a';
                 ctx.fillRect(px, py, pw, ph);
@@ -1079,9 +1204,33 @@
         }
 
         function setupInteractionEvents() {
-            // Mouse Wheel Zooming around cursor
+            // Mouse Wheel Zooming around cursor & Ctrl+Wheel Page / Scroll Handling
             canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
+
+                const hoverNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
+                const isHoveringLevel3Pdf = hoverNode && hoverNode.type === 'file' && hoverNode.ext === 'pdf' &&
+                                            (hoverNode.width * state.transform.scale >= 550);
+
+                if (e.ctrlKey) {
+                    if (isHoveringLevel3Pdf && hoverNode.pdfDoc) {
+                        // Ctrl + Wheel over Level 3 PDF: Turn Pages
+                        const delta = e.deltaY > 0 ? 1 : -1;
+                        const newPage = Math.max(1, Math.min(hoverNode.totalPages || 1, (hoverNode.currentPage || 1) + delta));
+                        if (newPage !== hoverNode.currentPage) {
+                            hoverNode.currentPage = newPage;
+                            renderPdfPageToCache(hoverNode, newPage);
+                            playSound('click');
+                        }
+                    } else {
+                        // Ctrl + Wheel elsewhere: Pan Viewport Vertically
+                        state.transform.y -= e.deltaY * 1.2;
+                        renderScene();
+                    }
+                    return;
+                }
+
+                // Normal Zooming without Ctrl
                 const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
                 
                 const mouseX = e.clientX;
