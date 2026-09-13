@@ -145,14 +145,93 @@
     </aside>
 
     <!-- Right-Click Context Menu -->
-    <div id="context-menu" class="fixed hidden z-50 glass-panel py-1.5 rounded-xl shadow-2xl w-56 border border-slate-700">
-        <div class="px-3 py-1 text-[11px] font-mono text-slate-400 border-b border-slate-800 truncate" id="ctx-item-name">
-            Folder Name
+    <div id="context-menu" class="fixed hidden z-50 glass-panel py-1.5 rounded-xl shadow-2xl w-64 border border-slate-700/80 divide-y divide-slate-800">
+        <div class="px-3 py-1.5 text-[11px] font-mono text-slate-400 bg-slate-900/40 rounded-t-xl truncate" id="ctx-item-name">
+            Item Name
         </div>
-        <button onclick="removeSelectedRoot()" class="w-full text-left px-3 py-2 text-xs text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 flex items-center space-x-2 transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-            <span>Delete Root Directory</span>
+        
+        <div class="py-1">
+            <button onclick="ctxOpenDefaultApp()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">🚀</span>
+                <span>関連アプリで開く</span>
         </button>
+            <button onclick="ctxShowInExplorer()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">📂</span>
+                <span>エクスプローラーで開く</span>
+            </button>
+        </div>
+    
+        <div class="py-1">
+            <button onclick="ctxCutItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">✂️</span>
+                <span>切り取り (Cut)</span>
+            </button>
+            <button onclick="ctxCopyItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">📋</span>
+                <span>コピー (Copy)</span>
+            </button>
+            <button id="ctx-btn-paste" onclick="ctxPasteItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all disabled:opacity-40 disabled:pointer-events-none">
+                <span class="text-sm">📥</span>
+                <span>貼り付け (Paste)</span>
+            </button>
+        </div>
+    
+        <div class="py-1">
+            <button onclick="ctxPromptNewItem('file')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">📄</span>
+                <span>新規ファイル作成</span>
+            </button>
+            <button onclick="ctxPromptNewItem('folder')" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">📁</span>
+                <span>新規フォルダ作成</span>
+            </button>
+        </div>
+    
+        <div class="py-1">
+            <button onclick="ctxPromptRename()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">✏️</span>
+                <span>名前の変更 (Rename)</span>
+            </button>
+            <button onclick="ctxDeleteItem()" class="w-full text-left px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 flex items-center space-x-2 transition-all">
+                <span class="text-sm">🗑️</span>
+                <span>削除 (ゴミ箱へ移動)</span>
+            </button>
+        </div>
+    
+        <div class="py-1">
+            <button onclick="ctxCopyFullPath()" class="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">🔗</span>
+                <span>フルパスをコピー</span>
+            </button>
+            <button onclick="ctxCopyFileName()" class="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+                <span class="text-sm">📝</span>
+                <span>ファイル名をコピー</span>
+            </button>
+        </div>
+    
+        <div class="py-1" id="ctx-root-delete-group">
+            <button onclick="removeSelectedRoot()" class="w-full text-left px-3 py-1.5 text-xs text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 flex items-center space-x-2 transition-all">
+                <span class="text-sm">❌</span>
+                <span>ルートフォルダをワークスペースから除外</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Operation Input Dialog Modal -->
+    <div id="action-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel p-5 rounded-2xl w-full max-w-md shadow-2xl border border-slate-700">
+            <h3 class="text-sm font-bold text-slate-100 mb-2" id="modal-title">Input</h3>
+            <p class="text-xs text-slate-400 mb-3" id="modal-desc">Description text</p>
+            <input type="text" id="modal-input" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500 mb-4" onkeydown="if(event.key==='Enter') submitActionModal()">
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeActionModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700">
+                    Cancel
+                </button>
+                <button onclick="submitActionModal()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow">
+                    Confirm
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Drag & Drop Hint Overlay -->
@@ -202,7 +281,9 @@
             rootNode: null,
             isLoadingFolder: false,
             selectedContextNode: null,
-            selectedNode: null
+            selectedNode: null,
+            clipboard: null, // { action: 'cut'|'copy', node: Node }
+            activeModalCallback: null
         };
 
         function initCanvases() {
@@ -328,8 +409,8 @@
             }
         }
 
-        async function triggerLazyFolderScan(node) {
-            if (node.scanned || node.isScanning) return;
+        async function triggerLazyFolderScan(node, forceReScan = false) {
+            if ((node.scanned && !forceReScan) || node.isScanning) return;
 
             // Do not expand contents of hidden folders
             if (node.isHidden) {
@@ -1265,11 +1346,13 @@
             canvas.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const clickedNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
-                if (clickedNode && clickedNode.depth === 1) {
+                if (clickedNode && clickedNode.depth > 0) {
                     state.selectedContextNode = clickedNode;
-                    showContextMenu(e.clientX, e.clientY, clickedNode.name);
+                    selectNode(clickedNode);
+                    showContextMenu(e.clientX, e.clientY, clickedNode);
                 } else {
-                    hideContextMenu();
+                    state.selectedContextNode = null;
+                    showContextMenu(e.clientX, e.clientY, null);
                 }
             });
 
@@ -1565,23 +1648,273 @@
             return null;
         }
 
-        function showContextMenu(x, y, name) {
+        // --- Windows 11 Right-Click Context Menu Logic ---
+        function showContextMenu(x, y, node) {
             const menu = document.getElementById('context-menu');
-            document.getElementById('ctx-item-name').textContent = name;
-            menu.style.left = `${x}px`;
-            menu.style.top = `${y}px`;
+            const nameEl = document.getElementById('ctx-item-name');
+            const rootGroupEl = document.getElementById('ctx-root-delete-group');
+            const pasteBtn = document.getElementById('ctx-btn-paste');
+    
+            nameEl.textContent = node ? node.name : 'Workspace Background';
+            
+            if (node && node.depth === 1) {
+                rootGroupEl.classList.remove('hidden');
+            } else {
+                rootGroupEl.classList.add('hidden');
+            }
+    
+            if (state.clipboard) {
+                pasteBtn.removeAttribute('disabled');
+            } else {
+                pasteBtn.setAttribute('disabled', 'true');
+            }
+    
+            // Boundary positioning
+            const menuW = 256;
+            const menuH = 340;
+            const posX = Math.min(x, window.innerWidth - menuW - 10);
+            const posY = Math.min(y, window.innerHeight - menuH - 10);
+    
+            menu.style.left = `${posX}px`;
+            menu.style.top = `${posY}px`;
             menu.classList.remove('hidden');
         }
 
         function hideContextMenu() {
             document.getElementById('context-menu').classList.add('hidden');
-            state.selectedContextNode = null;
+        }
+    
+        // Context Menu Action 1: Open with Default Associated App
+        async function ctxOpenDefaultApp() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (node && node.nativePath && ipcRenderer) {
+                const res = await ipcRenderer.invoke('shell:openPath', node.nativePath);
+                if (!res.success) {
+                    alert('アプリケーションを開けませんでした: ' + res.error);
+                }
+            }
+        }
+    
+        // Context Menu Action 2: Open / Show item in Windows Explorer
+        async function ctxShowInExplorer() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (node && node.nativePath && ipcRenderer) {
+                await ipcRenderer.invoke('shell:showItemInFolder', node.nativePath);
+            }
+        }
+    
+        // Context Menu Action 3: Cut Item
+        function ctxCutItem() {
+            hideContextMenu();
+            if (state.selectedNode) {
+                state.clipboard = { action: 'cut', node: state.selectedNode };
+                document.getElementById('status-text').textContent = `Cut: "${state.selectedNode.name}"`;
+            }
+        }
+    
+        // Context Menu Action 4: Copy Item
+        function ctxCopyItem() {
+            hideContextMenu();
+            if (state.selectedNode) {
+                state.clipboard = { action: 'copy', node: state.selectedNode };
+                document.getElementById('status-text').textContent = `Copied: "${state.selectedNode.name}"`;
+            }
+        }
+    
+        // Context Menu Action 5: Paste Item
+        async function ctxPasteItem() {
+            hideContextMenu();
+            if (!state.clipboard || !state.clipboard.node || !ipcRenderer) return;
+    
+            const srcNode = state.clipboard.node;
+            let destNode = state.selectedNode;
+    
+            if (!destNode || destNode.type !== 'folder') {
+                destNode = srcNode.parent || state.rootNode;
+            }
+    
+            if (!destNode || !destNode.nativePath) return;
+    
+            const destPath = destNode.nativePath + '/' + srcNode.name;
+            const action = state.clipboard.action;
+    
+            document.getElementById('status-text').textContent = `Pasting to "${destNode.name}"...`;
+    
+            if (action === 'cut') {
+                const res = await ipcRenderer.invoke('fs:moveItem', { srcPath: srcNode.nativePath, destPath });
+                if (res.success) {
+                    if (srcNode.parent && srcNode.parent.children) {
+                        srcNode.parent.children = srcNode.parent.children.filter(c => c.id !== srcNode.id);
+                    }
+                    state.clipboard = null;
+                } else {
+                    alert('移動エラー: ' + res.error);
+                }
+            } else if (action === 'copy') {
+                const res = await ipcRenderer.invoke('fs:copyItem', { srcPath: srcNode.nativePath, destPath });
+                if (!res.success) {
+                    alert('コピーエラー: ' + res.error);
+                }
+            }
+    
+            await triggerLazyFolderScan(destNode, true);
+            layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+            renderScene();
+            renderTreeView();
+            updateStatusText();
+        }
+    
+        // Context Menu Action 6: New File / Folder Prompts
+        function ctxPromptNewItem(type) {
+            hideContextMenu();
+            const targetFolder = (state.selectedNode && state.selectedNode.type === 'folder') 
+                ? state.selectedNode 
+                : ((state.selectedNode && state.selectedNode.parent) ? state.selectedNode.parent : state.rootNode.children[0]);
+    
+            if (!targetFolder || !targetFolder.nativePath) {
+                alert('作成先のフォルダが選択されていません。');
+                return;
+            }
+    
+            openActionModal(
+                type === 'file' ? '新規ファイルの作成' : '新規フォルダの作成',
+                `作成先: ${targetFolder.nativePath}`,
+                type === 'file' ? 'new_file.txt' : 'New Folder',
+                async (val) => {
+                    if (!val.trim()) return;
+                    const channel = type === 'file' ? 'fs:createFile' : 'fs:createFolder';
+                    const payload = type === 'file' 
+                        ? { parentDir: targetFolder.nativePath, fileName: val.trim() }
+                        : { parentDir: targetFolder.nativePath, folderName: val.trim() };
+    
+                    const res = await ipcRenderer.invoke(channel, payload);
+                    if (res.success) {
+                        await triggerLazyFolderScan(targetFolder, true);
+                        layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                        renderScene();
+                        renderTreeView();
+                    } else {
+                        alert('作成に失敗しました: ' + res.error);
+                    }
+                }
+            );
+        }
+    
+        // Context Menu Action 7: Rename Item
+        function ctxPromptRename() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (!node || !node.nativePath || !ipcRenderer) return;
+    
+            openActionModal(
+                '名前の変更',
+                `新しい名称を入力してください (${node.name}):`,
+                node.name,
+                async (newName) => {
+                    if (!newName.trim() || newName.trim() === node.name) return;
+                    const parts = node.nativePath.replace(/\\/g, '/').split('/');
+                    parts.pop();
+                    const newPath = parts.join('/') + '/' + newName.trim();
+    
+                    const res = await ipcRenderer.invoke('fs:rename', { oldPath: node.nativePath, newPath });
+                    if (res.success) {
+                        node.name = newName.trim();
+                        node.nativePath = newPath;
+                        if (node.type === 'file' && node.name.includes('.')) {
+                            node.ext = node.name.split('.').pop().toLowerCase();
+                        }
+                        if (node.parent) {
+                            sortNodeChildren(node.parent);
+                            layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                        }
+                        selectNode(node);
+                        renderScene();
+                        renderTreeView();
+                    } else {
+                        alert('名前の変更に失敗しました: ' + res.error);
+                    }
+                }
+            );
+        }
+    
+        // Context Menu Action 8: Delete Item (To Trash)
+        function ctxDeleteItem() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (!node || !node.nativePath || !ipcRenderer) return;
+    
+            if (confirm(`"${node.name}" をゴミ箱に移動しますか？`)) {
+                ipcRenderer.invoke('fs:delete', node.nativePath).then(res => {
+                    if (res.success) {
+                        if (node.parent && node.parent.children) {
+                            node.parent.children = node.parent.children.filter(c => c.id !== node.id);
+                        } else if (node.depth === 1) {
+                            state.rootNode.children = state.rootNode.children.filter(c => c.id !== node.id);
+                        }
+                        state.selectedNode = null;
+                        layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                        updateSidebarUI();
+                        renderScene();
+                        saveWorkspaceState();
+                    } else {
+                        alert('削除に失敗しました: ' + res.error);
+                    }
+                });
+            }
+        }
+    
+        // Context Menu Action 9: Copy Full Path
+        function ctxCopyFullPath() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (node && (node.nativePath || node.name)) {
+                navigator.clipboard.writeText(node.nativePath || node.name);
+                document.getElementById('status-text').textContent = 'Copied path to clipboard';
+                setTimeout(() => updateStatusText(), 2000);
+            }
+        }
+    
+        // Context Menu Action 10: Copy File Name
+        function ctxCopyFileName() {
+            hideContextMenu();
+            const node = state.selectedNode;
+            if (node && node.name) {
+                navigator.clipboard.writeText(node.name);
+                document.getElementById('status-text').textContent = 'Copied file name to clipboard';
+                setTimeout(() => updateStatusText(), 2000);
+            }
+        }
+    
+        // Operation Modal Handler
+        function openActionModal(title, desc, defaultVal, callback) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-desc').textContent = desc;
+            const input = document.getElementById('modal-input');
+            input.value = defaultVal;
+            state.activeModalCallback = callback;
+            document.getElementById('action-modal').classList.remove('hidden');
+            setTimeout(() => { input.focus(); input.select(); }, 50);
+        }
+    
+        function closeActionModal() {
+            document.getElementById('action-modal').classList.add('hidden');
+            state.activeModalCallback = null;
+        }
+    
+        function submitActionModal() {
+            const val = document.getElementById('modal-input').value;
+            const cb = state.activeModalCallback;
+            closeActionModal();
+            if (cb) cb(val);
         }
 
         function removeSelectedRoot() {
-            if (state.selectedContextNode && state.rootNode) {
-                state.rootNode.children = state.rootNode.children.filter(c => c.id !== state.selectedContextNode.id);
-                if (state.selectedNode === state.selectedContextNode) {
+            const node = state.selectedContextNode || state.selectedNode;
+            if (node && state.rootNode) {
+                state.rootNode.children = state.rootNode.children.filter(c => c.id !== node.id);
+                if (state.selectedNode === node) {
                     state.selectedNode = null;
                 }
                 layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);

@@ -240,3 +240,100 @@ ipcMain.handle('shell:openPath', async (event, targetPath) => {
         return { success: false, error: err.message };
     }
 });
+
+/**
+ * IPC Handler: Show item in Windows Explorer / OS File Manager
+ */
+ipcMain.handle('shell:showItemInFolder', async (event, targetPath) => {
+    try {
+        shell.showItemInFolder(targetPath);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+/**
+ * IPC Handler: Create New Blank File
+ */
+ipcMain.handle('fs:createFile', async (event, { parentDir, fileName }) => {
+    try {
+        const fullPath = path.join(parentDir, fileName);
+        await fs.promises.writeFile(fullPath, '', { flag: 'wx' });
+        return { success: true, fullPath };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+/**
+ * IPC Handler: Create New Folder
+ */
+ipcMain.handle('fs:createFolder', async (event, { parentDir, folderName }) => {
+    try {
+        const fullPath = path.join(parentDir, folderName);
+        await fs.promises.mkdir(fullPath, { recursive: true });
+        return { success: true, fullPath };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+/**
+ * IPC Handler: Rename File or Folder
+ */
+ipcMain.handle('fs:rename', async (event, { oldPath, newPath }) => {
+    try {
+        await fs.promises.rename(oldPath, newPath);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+/**
+ * IPC Handler: Delete Item (Move to Trash / Recycle Bin)
+ */
+ipcMain.handle('fs:delete', async (event, targetPath) => {
+    try {
+        await shell.trashItem(targetPath);
+        return { success: true };
+    } catch (err) {
+        try {
+            await fs.promises.rm(targetPath, { recursive: true, force: true });
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    }
+});
+
+/**
+ * IPC Handler: Copy File / Folder (Recursive)
+ */
+ipcMain.handle('fs:copyItem', async (event, { srcPath, destPath }) => {
+    try {
+        await fs.promises.cp(srcPath, destPath, { recursive: true });
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+/**
+ * IPC Handler: Move File / Folder (Cut & Paste)
+ */
+ipcMain.handle('fs:moveItem', async (event, { srcPath, destPath }) => {
+    try {
+        await fs.promises.rename(srcPath, destPath);
+        return { success: true };
+    } catch (err) {
+        try {
+            await fs.promises.cp(srcPath, destPath, { recursive: true });
+            await fs.promises.rm(srcPath, { recursive: true, force: true });
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    }
+});
