@@ -593,7 +593,8 @@
             // LOD Badge Indicator
             if (screenW > 180) {
                 let lodTag = screenW < 550 ? 'LOD 2: Preview' : 'LOD 3: Full';
-                if (node.isScanning || node.isContentLoading) lodTag = '⚡ Loading...';
+                if (node.isScanning || node.isContentLoading) lodTag = 'scanning';
+                else if (node.type === 'folder' && node.scanned && node.children.length === 0) lodTag = 'empty';
                 else if (node.type === 'folder' && !node.scanned) lodTag = 'Zoom to Scan';
 
                 ctx.font = '10px "JetBrains Mono"';
@@ -606,14 +607,28 @@
                 renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
             }
 
-            // Render Subfolders
-            if (node.type === 'folder' && node.children.length > 0 && !node.isHidden) {
+            // Render Subfolders & Folder Status Indicators (scanning / empty)
+            if (node.type === 'folder' && !node.isHidden) {
+                if (node.isScanning) {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.font = `${Math.max(11, Math.min(22, screenW * 0.035))}px "JetBrains Mono", monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('scanning...', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
+                    ctx.textAlign = 'left';
+                } else if (node.scanned && node.children.length === 0) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = `${Math.max(11, Math.min(22, screenW * 0.035))}px "JetBrains Mono", monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('empty', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
+                    ctx.textAlign = 'left';
+                } else if (node.children.length > 0) {
                 for (let i = 0; i < node.children.length; i++) {
                     const child = node.children[i];
                     const childScreenW = child.width * state.transform.scale;
                     // Skip rendering sub-children if their screen width is smaller than 20px for high performance
                     if (childScreenW >= 20) {
                         renderNode(child);
+                        }
                     }
                 }
             }
