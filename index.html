@@ -9,7 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Tone.js for subtle sound effects -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
@@ -47,6 +47,14 @@
             border: 1px solid rgba(51, 65, 85, 0.6);
         }
 
+        .tree-item:hover {
+            background-color: rgba(51, 65, 85, 0.5);
+        }
+        .tree-item.active {
+            background-color: rgba(14, 165, 233, 0.25);
+            border-left: 3px solid #38bdf8;
+        }
+
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -65,19 +73,37 @@
     <!-- Main Viewport Canvas -->
     <canvas id="viewport-canvas"></canvas>
 
-    <!-- Top Navigation & HUD -->
-    <header class="fixed top-4 left-4 right-4 flex justify-between items-center z-20 pointer-events-none">
-        <div class="glass-panel px-4 py-2.5 rounded-xl flex items-center space-x-3 pointer-events-auto shadow-xl">
+    <!-- Inverse L-Shape UI Container -->
+    <!-- 1. Top Bar (Horizontal Part of L) -->
+    <header class="fixed top-0 left-0 right-0 h-14 glass-panel border-b border-slate-700/60 z-30 flex items-center justify-between px-4">
+        <!-- App Title / Brand -->
+        <div class="flex items-center space-x-3 min-w-[220px]">
             <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
                 ❄️
             </div>
             <div>
         <h1 class="text-sm font-semibold text-slate-100 leading-tight">FractalExplorer</h1>
-                <p class="text-xs text-slate-400 font-mono" id="status-text">Multi-Root Infinite Workspace</p>
+                <p class="text-[10px] text-slate-400 font-mono" id="status-text">Multi-Root Workspace</p>
             </div>
         </div>
 
-        <div class="glass-panel px-3 py-2 rounded-xl flex items-center space-x-2 pointer-events-auto shadow-xl">
+        <!-- Path Search & Navigation Input (Center) -->
+        <div class="flex-1 max-w-2xl mx-4 flex items-center space-x-2">
+            <div class="relative w-full">
+                <input type="text" id="path-input" placeholder="Type or select a path/filename to zoom..." 
+                    onkeydown="if(event.key==='Enter') jumpToEnteredPath()"
+                    class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500 transition-all pr-8">
+                <button onclick="jumpToEnteredPath()" title="Zoom to Path" class="absolute right-2 top-1.5 text-slate-400 hover:text-blue-400">
+                    🔍
+                </button>
+            </div>
+            <button onclick="jumpToEnteredPath()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all shadow-md shrink-0">
+                Zoom to Target
+            </button>
+        </div>
+
+        <!-- Action Controls (Right) -->
+        <div class="flex items-center space-x-2">
             <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden" onchange="handleBrowserFolderSelect(event)">
             
             <button onclick="triggerFolderSelect()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all shadow-md flex items-center space-x-1.5">
@@ -96,16 +122,33 @@
         </div>
     </header>
 
-    <!-- Minimap Radar (Bottom Right) -->
-    <div class="fixed bottom-4 right-4 z-20 pointer-events-none">
-        <div class="glass-panel p-2 rounded-xl pointer-events-auto shadow-2xl flex flex-col items-end">
-            <div class="text-[10px] font-mono text-slate-400 mb-1 flex justify-between w-full px-1">
-                <span>RADAR</span>
-                <span id="zoom-level-indicator">100%</span>
+    <!-- 2. Left Sidebar (Vertical Part of L) -->
+    <aside id="left-sidebar" class="fixed top-14 left-0 bottom-0 w-80 glass-panel border-r border-slate-700/60 z-20 flex flex-col justify-between overflow-hidden shadow-2xl">
+        
+        <!-- Tree View Section (Top Half) -->
+        <div class="p-3 border-b border-slate-800 flex-1 flex flex-col min-h-0">
+            <div class="flex items-center justify-between mb-2 px-1">
+                <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Workspace Hierarchy</span>
+                <span class="text-[10px] text-slate-500 font-mono" id="tree-node-count">0 items</span>
             </div>
-            <canvas id="minimap-canvas" width="160" height="90" class="rounded-lg border border-slate-700/80 bg-slate-950"></canvas>
+            <div id="tree-view-container" class="flex-1 overflow-y-auto custom-scrollbar space-y-0.5 text-xs font-mono pr-1">
+                <div class="text-slate-500 italic p-2 text-center text-[11px]">No items in workspace</div>
         </div>
     </div>
+
+        <!-- Selected Item Properties Section (Bottom Half) -->
+        <div class="p-3 bg-slate-950/60 border-t border-slate-800 h-64 flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Item Properties</span>
+                <span id="prop-type-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400">None</span>
+            </div>
+            
+            <div id="properties-panel" class="flex-1 overflow-y-auto custom-scrollbar text-xs space-y-2 pr-1">
+                <div class="text-slate-500 italic text-center py-6 text-[11px]">Click a file or folder to view details</div>
+            </div>
+        </div>
+
+    </aside>
 
     <!-- Right-Click Context Menu -->
     <div id="context-menu" class="fixed hidden z-50 glass-panel py-1.5 rounded-xl shadow-2xl w-56 border border-slate-700">
@@ -136,8 +179,6 @@
 
         const canvas = document.getElementById('viewport-canvas');
         const ctx = canvas.getContext('2d');
-        const minimapCanvas = document.getElementById('minimap-canvas');
-        const minimapCtx = minimapCanvas.getContext('2d');
 
         if (window.pdfjsLib) {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -152,8 +193,12 @@
         const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'];
         const DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
-        // Helper to check if item is hidden (starts with . or $)
+        // Only exact system reserved directories are ignored
+        const IGNORED_FOLDERS = ['$recycle.bin', 'system volume information', 'recovery', '$windows.~bt', '$windows.~ws', 'config.msi'];
+
+        // Helper: Check if item/folder is hidden (. or $ prefix)
         function isItemHidden(name) {
+            if (!name) return false;
             return name.startsWith('.') || name.startsWith('$');
         }
 
@@ -161,11 +206,13 @@
             transform: { x: window.innerWidth / 2, y: window.innerHeight / 2, scale: 0.85 },
             isDragging: false,
             dragStart: { x: 0, y: 0 },
+            mouseDownPos: { x: 0, y: 0 },
             mouse: { x: 0, y: 0 },
             audioEnabled: false,
             rootNode: null,
             isLoadingFolder: false,
-            selectedContextNode: null
+            selectedContextNode: null,
+            selectedNode: null
         };
 
         let synth = null;
@@ -522,9 +569,6 @@
             if (state.hasActiveVideoPlaying) {
                 requestAnimationFrame(renderScene);
             }
-
-            // Render Radar Minimap
-            renderMinimap();
         }
 
         function renderNode(node) {
@@ -550,13 +594,13 @@
                 return;
             }
 
-            // ON-DEMAND LAZY SCAN TRIGGER FOR FOLDERS
-            if (node.type === 'folder' && !node.scanned && !node.isScanning && !node.isHidden && screenW >= 140) {
+            // ON-DEMAND LAZY SCAN TRIGGER FOR FOLDERS (Only when zoomed in enough)
+            if (node.type === 'folder' && !node.scanned && !node.isScanning && screenW >= 140) {
                 triggerLazyFolderScan(node);
             }
 
             // ON-DEMAND FILE PREVIEW TRIGGER FOR FILES
-            if (node.type === 'file' && !node.contentLoaded && !node.isContentLoading && !node.isHidden && screenW >= 140) {
+            if (node.type === 'file' && !node.contentLoaded && !node.isContentLoading && screenW >= 240) {
                 triggerLazyFileContentLoad(node);
             }
 
@@ -568,6 +612,7 @@
 
             const isHovered = state.mouse.x >= screenX && state.mouse.x <= screenX + screenW &&
                               state.mouse.y >= screenY && state.mouse.y <= screenY + screenH;
+            const isSelected = state.selectedNode === node;
 
             // -------------------------------------------------------------
             // RULE: Hidden files and Archive files are ALWAYS Icon-only (Level 1)
@@ -589,12 +634,13 @@
 
                 ctx.fillStyle = node.type === 'folder' ? '#1e293b' : '#0f172a';
                 ctx.fillRect(screenX, screenY, screenW, screenH);
-                ctx.strokeStyle = isHovered ? '#3b82f6' : '#334155';
-                ctx.lineWidth = isHovered ? 1.5 : 0.5;
+
+                ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#334155');
+                ctx.lineWidth = isSelected ? 3 : (isHovered ? 1.5 : 0.5);
                 ctx.strokeRect(screenX, screenY, screenW, screenH);
 
                 if (screenW > 24) {
-                    ctx.fillStyle = node.type === 'folder' ? '#60a5fa' : (node.isHidden ? '#64748b' : '#94a3b8');
+                    ctx.fillStyle = isSelected ? '#fbbf24' : (node.type === 'folder' ? '#60a5fa' : (node.isHidden ? '#64748b' : '#94a3b8'));
                     const fontSize = Math.max(9, Math.min(13, screenW * 0.1));
                     ctx.font = `${fontSize}px "Inter", sans-serif`;
                     
@@ -615,18 +661,18 @@
             ctx.fillStyle = node.type === 'folder' ? '#0f172a' : '#090d16';
             ctx.fillRect(screenX, screenY, screenW, screenH);
 
-            ctx.strokeStyle = isHovered ? '#3b82f6' : '#1e293b';
-            ctx.lineWidth = isHovered ? 2 : 1;
+            ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#1e293b');
+            ctx.lineWidth = isSelected ? 3.5 : (isHovered ? 2 : 1);
             ctx.strokeRect(screenX, screenY, screenW, screenH);
 
             const headerH = screenH * (node.type === 'folder' ? 0.13 : 0.18);
-            ctx.fillStyle = isHovered ? 'rgba(59, 130, 246, 0.15)' : (node.type === 'folder' ? '#1e293b' : '#0f172a');
+            ctx.fillStyle = isSelected ? 'rgba(245, 158, 11, 0.2)' : (isHovered ? 'rgba(59, 130, 246, 0.15)' : (node.type === 'folder' ? '#1e293b' : '#0f172a'));
             ctx.fillRect(screenX, screenY, screenW, headerH);
             
             ctx.beginPath();
             ctx.moveTo(screenX, screenY + headerH);
             ctx.lineTo(screenX + screenW, screenY + headerH);
-            ctx.strokeStyle = isHovered ? '#3b82f6' : '#334155';
+            ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#334155');
             ctx.stroke();
 
             // File / Folder Category Icons
@@ -643,18 +689,19 @@
 
             const headerFontSize = Math.max(10, Math.min(18, screenW * 0.032));
             ctx.font = `600 ${headerFontSize}px "Inter", sans-serif`;
-            ctx.fillStyle = isHovered ? '#60a5fa' : (node.type === 'folder' ? '#f8fafc' : '#cbd5e1');
+            ctx.fillStyle = isSelected ? '#fbbf24' : (isHovered ? '#60a5fa' : (node.type === 'folder' ? '#f8fafc' : '#cbd5e1'));
             ctx.fillText(iconChar + node.name, screenX + 10, screenY + headerH * 0.68);
 
             // LOD Badge Indicator
             if (screenW > 180) {
                 let lodTag = screenW < 550 ? 'LOD 2: Preview' : 'LOD 3: Full';
-                if (node.isScanning || node.isContentLoading) lodTag = 'scanning';
+                if (isSelected) lodTag = 'SELECTED';
+                else if (node.isScanning || node.isContentLoading) lodTag = 'scanning';
                 else if (node.type === 'folder' && node.scanned && node.children.length === 0) lodTag = 'empty';
                 else if (node.type === 'folder' && !node.scanned) lodTag = 'Zoom to Scan';
 
                 ctx.font = '10px "JetBrains Mono"';
-                ctx.fillStyle = (node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b';
+                ctx.fillStyle = isSelected ? '#fbbf24' : ((node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b');
                 ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 120, screenY + headerH * 0.68);
             }
 
@@ -681,7 +728,6 @@
                 for (let i = 0; i < node.children.length; i++) {
                     const child = node.children[i];
                     const childScreenW = child.width * state.transform.scale;
-                    // Skip rendering sub-children if their screen width is smaller than 20px for high performance
                     if (childScreenW >= 20) {
                         renderNode(child);
                         }
@@ -969,42 +1015,6 @@
             }
         }
 
-        function renderMinimap() {
-            minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-            minimapCtx.fillStyle = '#020617';
-            minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-
-            const mapScale = 0.07;
-            const mapOffsetX = minimapCanvas.width / 2 + (state.transform.x - canvas.width / 2) * mapScale;
-            const mapOffsetY = minimapCanvas.height / 2 + (state.transform.y - canvas.height / 2) * mapScale;
-
-            if (state.rootNode && state.rootNode.children) {
-                for (const rootChild of state.rootNode.children) {
-                    const rx = rootChild.x * mapScale * state.transform.scale + mapOffsetX;
-                    const ry = rootChild.y * mapScale * state.transform.scale + mapOffsetY;
-                    const rw = rootChild.width * mapScale * state.transform.scale;
-                    const rh = rootChild.height * mapScale * state.transform.scale;
-
-                    minimapCtx.fillStyle = 'rgba(59, 130, 246, 0.4)';
-                    minimapCtx.fillRect(rx, ry, rw, rh);
-                    minimapCtx.strokeStyle = '#3b82f6';
-                    minimapCtx.strokeRect(rx, ry, rw, rh);
-                }
-            }
-
-            // Viewport Box
-            const vw = canvas.width * mapScale;
-            const vh = canvas.height * mapScale;
-            const vx = (canvas.width / 2) * mapScale + mapOffsetX - vw / 2;
-            const vy = (canvas.height / 2) * mapScale + mapOffsetY - vh / 2;
-
-            minimapCtx.strokeStyle = '#38bdf8';
-            minimapCtx.lineWidth = 1.5;
-            minimapCtx.strokeRect(vx, vy, vw, vh);
-
-            document.getElementById('zoom-level-indicator').textContent = Math.round(state.transform.scale * 100) + '%';
-        }
-
         async function appendNativePathToWorkspace(dirPath, autoSave = true) {
             document.getElementById('status-text').textContent = `Adding: ${dirPath}...`;
             state.isLoadingFolder = true;
@@ -1021,7 +1031,8 @@
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
                 scanned: false,
-                isScanning: false
+                isScanning: false,
+                isHidden: isItemHidden(folderName)
             };
 
             state.rootNode.children.push(rootItem);
@@ -1051,7 +1062,8 @@
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
                 scanned: false,
-                isScanning: false
+                isScanning: false,
+                isHidden: isItemHidden(handle.name)
             };
 
             state.rootNode.children.push(rootItem);
@@ -1214,7 +1226,6 @@
 
                 if (e.ctrlKey) {
                     if (isHoveringLevel3Pdf && hoverNode.pdfDoc) {
-                        // Ctrl + Wheel over Level 3 PDF: Turn Pages
                         const delta = e.deltaY > 0 ? 1 : -1;
                         const newPage = Math.max(1, Math.min(hoverNode.totalPages || 1, (hoverNode.currentPage || 1) + delta));
                         if (newPage !== hoverNode.currentPage) {
@@ -1223,7 +1234,6 @@
                             playSound('click');
                         }
                     } else {
-                        // Ctrl + Wheel elsewhere: Pan Viewport Vertically
                         state.transform.y -= e.deltaY * 1.2;
                         renderScene();
                     }
@@ -1232,7 +1242,6 @@
 
                 // Normal Zooming without Ctrl
                 const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-                
                 const mouseX = e.clientX;
                 const mouseY = e.clientY;
 
@@ -1244,12 +1253,13 @@
                 renderScene();
             }, { passive: false });
 
-            // Panning
+            // Mouse Down (Drag & Click Detection)
             canvas.addEventListener('mousedown', (e) => {
                 if (e.button === 0) {
                     state.isDragging = true;
                     state.dragStart.x = e.clientX - state.transform.x;
                     state.dragStart.y = e.clientY - state.transform.y;
+                    state.mouseDownPos = { x: e.clientX, y: e.clientY };
                     hideContextMenu();
                 }
             });
@@ -1265,7 +1275,17 @@
                 renderScene();
             });
 
-            window.addEventListener('mouseup', () => {
+            window.addEventListener('mouseup', (e) => {
+                if (state.isDragging) {
+                    const distMoved = Math.hypot(e.clientX - state.mouseDownPos.x, e.clientY - state.mouseDownPos.y);
+                    // Treat as click selection if mouse moved less than 5px during drag
+                    if (distMoved < 5) {
+                        const clickedNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
+                        if (clickedNode && clickedNode.depth > 0) {
+                            selectNode(clickedNode);
+                        }
+                    }
+                }
                 state.isDragging = false;
             });
 
@@ -1315,6 +1335,203 @@
             });
         }
 
+        // Selection & Sidebar Updates
+        function selectNode(node) {
+            state.selectedNode = node;
+            playSound('click');
+
+            // Update Top Path Bar
+            const pathInput = document.getElementById('path-input');
+            if (pathInput) {
+                pathInput.value = node.nativePath || node.name || '';
+            }
+
+            updateSidebarUI();
+            renderScene();
+        }
+
+        function updateSidebarUI() {
+            // Update Tree View
+            renderTreeView();
+
+            // Update Properties Panel
+            const propPanel = document.getElementById('properties-panel');
+            const propBadge = document.getElementById('prop-type-badge');
+            
+            if (!state.selectedNode) {
+                propBadge.textContent = 'None';
+                propBadge.className = 'px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400';
+                propPanel.innerHTML = '<div class="text-slate-500 italic text-center py-6 text-[11px]">Click a file or folder to view details</div>';
+                return;
+            }
+
+            const n = state.selectedNode;
+            const isDir = n.type === 'folder';
+            propBadge.textContent = isDir ? 'Folder' : (n.ext ? n.ext.toUpperCase() : 'File');
+            propBadge.className = isDir 
+                ? 'px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-900/60 text-blue-300 border border-blue-700/50' 
+                : 'px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-900/60 text-emerald-300 border border-emerald-700/50';
+
+            const fullPath = n.nativePath || n.name || 'Memory Node';
+            const childCount = isDir ? (n.children ? n.children.length : 0) : null;
+            
+            propPanel.innerHTML = `
+                <div class="space-y-2 font-mono text-[11px]">
+                    <div>
+                        <span class="text-slate-500 block text-[10px] uppercase">Name</span>
+                        <span class="text-slate-100 font-semibold break-all">${n.name}</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-500 block text-[10px] uppercase">Path</span>
+                        <span class="text-slate-300 break-all bg-slate-900/80 p-1 rounded block border border-slate-800 select-text">${fullPath}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                            <span class="text-slate-500 block text-[10px] uppercase">Type</span>
+                            <span class="text-slate-200">${isDir ? 'Folder' : (n.ext || 'File')}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 block text-[10px] uppercase">Depth</span>
+                            <span class="text-slate-200">Level ${n.depth}</span>
+                        </div>
+                    </div>
+                    ${isDir ? `
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-slate-500 block text-[10px] uppercase">Items</span>
+                            <span class="text-slate-200">${childCount} items</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 block text-[10px] uppercase">Status</span>
+                            <span class="${n.scanned ? 'text-emerald-400' : 'text-amber-400'}">${n.scanned ? 'Scanned' : 'Unscanned'}</span>
+                        </div>
+                    </div>
+                    ` : `
+                    <div>
+                        <span class="text-slate-500 block text-[10px] uppercase">Content Loaded</span>
+                        <span class="${n.contentLoaded ? 'text-emerald-400' : 'text-slate-400'}">${n.contentLoaded ? 'Yes' : 'No'}</span>
+                    </div>
+                    `}
+                    <div class="pt-2">
+                        <button onclick="zoomToNode(state.selectedNode)" class="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-sans text-xs font-medium transition-all shadow">
+                            🎯 Center & Zoom View
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTreeView() {
+            const container = document.getElementById('tree-view-container');
+            const countLabel = document.getElementById('tree-node-count');
+            
+            if (!state.rootNode || !state.rootNode.children || state.rootNode.children.length === 0) {
+                container.innerHTML = '<div class="text-slate-500 italic p-2 text-center text-[11px]">No items in workspace</div>';
+                countLabel.textContent = '0 items';
+                return;
+            }
+
+            let html = '';
+            let totalCount = 0;
+
+            function buildTreeHTML(node, indent = 0) {
+                if (node.depth > 0) {
+                    totalCount++;
+                    const isSelected = state.selectedNode === node;
+                    const icon = node.type === 'folder' ? (node.scanned ? '📁' : '📂') : '📄';
+                    const indentPx = indent * 12;
+
+                    html += `
+                        <div onclick="event.stopPropagation(); selectNodeById('${node.id}')" 
+                             class="tree-item px-2 py-1 rounded cursor-pointer transition-colors flex items-center space-x-1.5 truncate ${isSelected ? 'active text-blue-300 font-semibold' : 'text-slate-300'}"
+                             style="padding-left: ${indentPx + 6}px;">
+                            <span>${icon}</span>
+                            <span class="truncate">${node.name}</span>
+                        </div>
+                    `;
+                }
+
+                if (node.children && node.children.length > 0) {
+                    for (const child of node.children) {
+                        buildTreeHTML(child, indent + (node.depth > 0 ? 1 : 0));
+                    }
+                }
+            }
+
+            buildTreeHTML(state.rootNode, 0);
+            container.innerHTML = html;
+            countLabel.textContent = `${totalCount} items`;
+        }
+
+        function selectNodeById(id) {
+            const found = findNodeById(state.rootNode, id);
+            if (found) {
+                selectNode(found);
+            }
+        }
+
+        function findNodeById(node, id) {
+            if (node.id === id) return node;
+            if (node.children) {
+                for (const child of node.children) {
+                    const res = findNodeById(child, id);
+                    if (res) return res;
+                }
+            }
+            return null;
+        }
+
+        function jumpToEnteredPath() {
+            const input = document.getElementById('path-input');
+            if (!input || !input.value.trim()) return;
+
+            const query = input.value.trim().toLowerCase();
+            const target = findNodeByPathOrName(state.rootNode, query);
+
+            if (target) {
+                selectNode(target);
+                zoomToNode(target);
+            } else {
+                document.getElementById('status-text').textContent = `Target not found: "${input.value}"`;
+                setTimeout(() => updateStatusText(), 3000);
+            }
+        }
+
+        function findNodeByPathOrName(node, query) {
+            if (node.depth > 0) {
+                const normPath = (node.nativePath || '').toLowerCase().replace(/\\/g, '/');
+                const normName = (node.name || '').toLowerCase();
+                const normQuery = query.replace(/\\/g, '/');
+
+                if (normPath === normQuery || normName === normQuery || normPath.endsWith('/' + normQuery)) {
+                    return node;
+                }
+            }
+
+            if (node.children) {
+                for (const child of node.children) {
+                    const found = findNodeByPathOrName(child, query);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function zoomToNode(node) {
+            if (!node) return;
+            // Calculate scale to make node take ~50% of screen height
+            const targetScale = (canvas.height * 0.5) / node.height;
+            const targetX = canvas.width / 2 - (node.x + node.width / 2) * targetScale;
+            const targetY = canvas.height / 2 - (node.y + node.height / 2) * targetScale;
+
+            state.transform.scale = targetScale;
+            state.transform.x = targetX;
+            state.transform.y = targetY;
+
+            playSound('zoom');
+            renderScene();
+        }
+
         function findNodeAtPosition(node, mx, my) {
             const screenX = node.x * state.transform.scale + state.transform.x;
             const screenY = node.y * state.transform.scale + state.transform.y;
@@ -1349,9 +1566,13 @@
         function removeSelectedRoot() {
             if (state.selectedContextNode && state.rootNode) {
                 state.rootNode.children = state.rootNode.children.filter(c => c.id !== state.selectedContextNode.id);
+                if (state.selectedNode === state.selectedContextNode) {
+                    state.selectedNode = null;
+                }
                 layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
                 hideContextMenu();
                 resetZoom();
+                updateSidebarUI();
                 renderScene();
                 updateStatusText();
                 saveWorkspaceState();
@@ -1368,58 +1589,7 @@
         function updateStatusText() {
             const count = state.rootNode ? state.rootNode.children.length : 0;
             document.getElementById('status-text').textContent = count === 0 ? 'Empty Workspace - Click "+ Add Folder / Drive"' : `Active Roots: ${count} item(s)`;
-        }
-
-        function buildDemoTree() {
-            const workspace = createEmptyWorkspace();
-            const demoRoot = {
-                id: 'demo_root',
-                name: 'Sample Project Space',
-                type: 'folder',
-                ext: '',
-                children: [
-                    {
-                        id: 'demo_best',
-                        name: '$BEST',
-                        type: 'folder',
-                        ext: '',
-                        children: [
-                            { id: 'b1', name: 'config.json', type: 'file', ext: 'json', content: '{\n  "status": "active",\n  "system": "Eagle Mode"\n}' },
-                            { id: 'b2', name: 'run.sh', type: 'file', ext: 'sh', content: '#!/bin/bash\necho "Running $BEST module..."' }
-                        ]
-                    },
-                    {
-                        id: 'demo_src',
-                        name: 'src',
-                        type: 'folder',
-                        ext: '',
-                        children: [
-                            { id: 'f1', name: 'App.jsx', type: 'file', ext: 'jsx', content: 'export default function App() {\n  return (\n    <div className="p-4">\n      <h1 className="text-xl font-bold">Eagle Mode</h1>\n    </div>\n  );\n}' },
-                            { id: 'f2', name: 'main.js', type: 'file', ext: 'js', content: 'const { app, BrowserWindow } = require("electron");\napp.on("ready", () => console.log("App ready"));' },
-                            { id: 'f3', name: 'styles.css', type: 'file', ext: 'css', content: 'body { margin: 0; background: #090d16; color: #fff; }' }
-                        ]
-                    },
-                    {
-                        id: 'demo_assets',
-                        name: 'assets',
-                        type: 'folder',
-                        ext: '',
-                        children: [
-                            { id: 'f4', name: 'logo.png', type: 'file', ext: 'png' },
-                            { id: 'f5', name: 'archive.zip', type: 'file', ext: 'zip' },
-                            { id: 'f6', name: 'setup.exe', type: 'file', ext: 'exe' }
-                        ]
-                    },
-                    { id: 'f7', name: 'README.md', type: 'file', ext: 'md', content: '# Eagle Mode Flat Explorer\nDeep 16:9 flat zoom viewport file system explorer.' },
-                    { id: 'f8', name: 'package.json', type: 'file', ext: 'json', content: '{\n  "name": "eagle-mode-explorer",\n  "version": "1.0.0"\n}' }
-                ],
-                depth: 1,
-                scanned: true
-            };
-
-            workspace.children.push(demoRoot);
-            layoutNodeHierarchy(workspace, 0, 0, 1600, 900, 0);
-            return workspace;
+            renderTreeView();
         }
 
         // App Entry Point
