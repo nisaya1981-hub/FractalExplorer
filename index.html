@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FractalExplorer</title>
+    <title>FractalExplorer</title>
 
     <!-- Tailwind CSS & Google Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,6 +13,8 @@
     
     <!-- PDF.js for rendering PDF documents -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- JSZip for web fallback archive inspection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
         body, html {
@@ -64,6 +66,14 @@
         .custom-scrollbar::-webkit-scrollbar-track {
             background: #0f172a;
         }
+
+   @keyframes spin-once {
+       0% { transform: rotate(0deg); }
+       100% { transform: rotate(360deg); }
+   }
+   .animate-spin-once {
+       animation: spin-once 0.6s ease-in-out;
+   }
     </style>
 </head>
 <body class="text-slate-200">
@@ -80,7 +90,7 @@
                 ❄️
             </div>
             <div>
-        <h1 class="text-sm font-semibold text-slate-100 leading-tight">FractalExplorer</h1>
+                <h1 class="text-sm font-semibold text-slate-100 leading-tight">FractalExplorer</h1>
                 <p class="text-[10px] text-slate-400 font-mono" id="status-text">Multi-Root Workspace</p>
             </div>
         </div>
@@ -109,7 +119,19 @@
                 <span>+ Add Folder / Drive</span>
             </button>
 
-            <button onclick="resetZoom()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1">
+       <!-- Refresh Button -->
+       <button id="btn-refresh" onclick="refreshWorkspace()" title="最新の状態に更新 (再読み込み)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1.5">
+           <svg id="refresh-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+           <span>更新</span>
+       </button>
+
+       <!-- Settings Button -->
+       <button onclick="openSettingsModal()" title="自動展開対象外の設定 (.gitignore書式)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1.5">
+           <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+           <span>設定</span>
+       </button>
+
+       <button onclick="resetZoom()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all border border-slate-700 flex items-center space-x-1">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 00-1 1m-6 0h6"></path></svg>
                 <span>Reset View</span>
             </button>
@@ -122,13 +144,13 @@
         <!-- Tree View Section (Top Half) -->
         <div class="p-3 border-b border-slate-800 flex-1 flex flex-col min-h-0">
             <div class="flex items-center justify-between mb-2 px-1">
-                <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Workspace Hierarchy</span>
-                <span class="text-[10px] text-slate-500 font-mono" id="tree-node-count">0 items</span>
+               <span class="text-xs font-semibold text-slate-300 tracking-wide uppercase">Workspace Hierarchy (Folders)</span>
+               <span class="text-[10px] text-slate-500 font-mono" id="tree-node-count">0 folders</span>
             </div>
             <div id="tree-view-container" class="flex-1 overflow-y-auto custom-scrollbar space-y-0.5 text-xs font-mono pr-1">
                 <div class="text-slate-500 italic p-2 text-center text-[11px]">No items in workspace</div>
+            </div>
         </div>
-    </div>
 
         <!-- Selected Item Properties Section (Bottom Half) -->
         <div class="p-3 bg-slate-950/60 border-t border-slate-800 h-64 flex flex-col">
@@ -151,10 +173,14 @@
         </div>
         
         <div class="py-1">
+       <button onclick="ctxRefreshItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
+           <span class="text-sm">🔄</span>
+           <span>最新の情報に更新 (Refresh)</span>
+       </button>
             <button onclick="ctxOpenDefaultApp()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
                 <span class="text-sm">🚀</span>
                 <span>関連アプリで開く</span>
-        </button>
+            </button>
             <button onclick="ctxShowInExplorer()" class="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white flex items-center space-x-2 transition-all">
                 <span class="text-sm">📂</span>
                 <span>エクスプローラーで開く</span>
@@ -217,6 +243,41 @@
         </div>
     </div>
     
+<!-- Settings Modal -->
+<div id="settings-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+   <div class="glass-panel p-5 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-700 flex flex-col">
+       <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+           <div class="flex items-center space-x-2">
+               <span class="text-base">⚙️</span>
+               <h3 class="text-sm font-bold text-slate-100">自動展開対象外の設定 (.gitignore書式)</h3>
+           </div>
+           <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200 text-xs">✕</button>
+       </div>
+       
+       <p class="text-xs text-slate-400 mb-3 leading-relaxed">
+           ズームしても中身が自動展開されず、<strong class="text-blue-400">クリックした時のみ展開する</strong> ファイルやフォルダの条件を入力してください。書式は <code class="bg-slate-900 px-1 py-0.5 rounded text-amber-300 font-mono text-[11px]">.gitignore</code> と同じです。
+       </p>
+
+       <div class="mb-4">
+           <label class="block text-[11px] font-mono text-slate-400 mb-1">Ignore Patterns (1行に1パターン):</label>
+                <textarea id="settings-ignore-input" rows="8" placeholder="node_modules/&#10;.git/&#10;*.log&#10;dist/&#10;temp*" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500 custom-scrollbar resize-none"></textarea>
+       </div>
+
+       <div class="text-[10px] text-slate-500 mb-4 font-mono">
+           例: <code class="text-slate-400">node_modules/</code> (フォルダ限定), <code class="text-slate-400">*.zip</code> (拡張子指定), <code class="text-slate-400">.git</code> (特定の名前)
+       </div>
+
+       <div class="flex justify-end space-x-2 border-t border-slate-800 pt-3">
+           <button onclick="closeSettingsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700">
+               Cancel
+           </button>
+           <button onclick="saveSettingsRules()" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow">
+               保存する (Save)
+           </button>
+       </div>
+   </div>
+</div>
+
     <!-- Operation Input Dialog Modal -->
     <div id="action-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="glass-panel p-5 rounded-2xl w-full max-w-md shadow-2xl border border-slate-700">
@@ -257,19 +318,58 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
 
+        // Helper: Convert local file path to safe file:// URI handling special characters (#, ?, Japanese)
+        function formatFileUrl(filePath) {
+            if (!filePath) return '';
+            const normalized = filePath.replace(/\\/g, '/');
+            return 'file:///' + encodeURI(normalized).replace(/#/g, '%23').replace(/\?/g, '%3F');
+        }
+
         // Categorized File Extensions
         const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico'];
         const TEXT_EXTS = ['txt', 'js', 'jsx', 'ts', 'tsx', 'html', 'css', 'json', 'py', 'md', 'c', 'cpp', 'h', 'hpp', 'java', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'kt', 'sh', 'bat', 'cmd', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'conf', 'log', 'csv', 'sql', 'env'];
-        const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'cab', 'tgz', 'iso'];
+        const ARCHIVE_EXTS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'cab', 'tgz', 'iso', 'jar', 'epub'];
         const BINARY_EXTS = ['exe', 'dll', 'sys', 'bin', 'dat', 'so', 'dylib', 'msi', 'com', 'drv', 'ocx', 'class', 'o', 'obj', 'elf', 'pkg', 'dmg'];
         const VIDEO_EXTS = ['mp4', 'mkv', 'webm', 'avi', 'mov', 'flv', 'wmv'];
         const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'];
         const DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
 
+   // Default Ignore Patterns (gitignore format)
+   const DEFAULT_IGNORE_RULES = `node_modules/\n.git/\n.ds_store\nThumbs.db\n*.tmp\n*.log`;
+
         // Helper: Check if item/folder is hidden (. or $ prefix)
         function isItemHidden(name) {
             if (!name) return false;
-            return name.startsWith('.') || name.startsWith('$');
+            if (name.startsWith('.')) return true;
+            return false;
+        }
+
+        // --- LRU Cache Manager for Memory Optimization (Max 50 items) ---
+        const MAX_LRU_CACHE = 50;
+        const lruCacheList = [];
+
+        function touchLruCache(node, key, obj) {
+            node[key] = obj;
+            const existingIdx = lruCacheList.findIndex(item => item.node === node && item.key === key);
+            if (existingIdx !== -1) {
+                lruCacheList.splice(existingIdx, 1);
+            }
+            lruCacheList.push({ node, key });
+
+            if (lruCacheList.length > MAX_LRU_CACHE) {
+                const oldest = lruCacheList.shift();
+                if (oldest && oldest.node) {
+                    oldest.node[oldest.key] = null; // Free RAM/VRAM
+                }
+            }
+        }
+
+        // Helper: Dynamic LOD Threshold calculation based on sibling item count in parent folder
+        function getPreviewThreshold(node) {
+            const siblingCount = (node.parent && node.parent.children) ? node.parent.children.length : 1;
+            if (siblingCount >= 100) return 600; // Requires deep zoom if > 100 items
+            if (siblingCount >= 30) return 400;  // Moderate zoom if > 30 items
+            return 240;                          // Default zoom threshold
         }
 
         const state = {
@@ -283,8 +383,109 @@
             selectedContextNode: null,
             selectedNode: null,
             clipboard: null, // { action: 'cut'|'copy', node: Node }
-            activeModalCallback: null
+       activeModalCallback: null,
+       ignoreRulesText: '',
+       parsedIgnoreRules: []
         };
+
+   // --- Gitignore Pattern Matcher Parser ---
+   function parseGitignoreRules(text) {
+       const lines = text.split('\n');
+       const rules = [];
+
+       for (let line of lines) {
+           line = line.trim();
+           if (!line || line.startsWith('#')) continue;
+
+           let isDirOnly = false;
+           if (line.endsWith('/')) {
+               isDirOnly = true;
+               line = line.slice(0, -1);
+           }
+
+           let matchStartOnly = false;
+           if (line.startsWith('/')) {
+               matchStartOnly = true;
+               line = line.slice(1);
+           } else if (line.includes('/')) {
+               matchStartOnly = true;
+           }
+
+           let regexStr = line
+               .replace(/[\-\[\]\/\{\}\(\)\+\.\\\^\$\|]/g, '\\$&')
+               .replace(/\*\*/g, '___DOUBLESTAR___')
+               .replace(/\*/g, '[^/]*')
+               .replace(/\?/g, '[^/]')
+               .replace(/___DOUBLESTAR___/g, '.*');
+
+           if (matchStartOnly) {
+               regexStr = '^' + regexStr;
+           } else {
+               regexStr = '(^|/)' + regexStr;
+           }
+           regexStr += '($|/)';
+
+           try {
+               rules.push({
+                   regex: new RegExp(regexStr, 'i'),
+                   isDirOnly: isDirOnly,
+                   raw: line
+               });
+           } catch(e) {}
+       }
+       return rules;
+   }
+
+   function isIgnoredByRule(node) {
+       if (!node || node.depth === 0) return false;
+       const rules = state.parsedIgnoreRules || [];
+       if (rules.length === 0) return false;
+
+       const name = node.name || '';
+       const relPath = (node.nativePath || node.name || '').replace(/\\/g, '/');
+       const isDir = node.type === 'folder' || ARCHIVE_EXTS.includes(node.ext);
+
+       for (const rule of rules) {
+           if (rule.isDirOnly && !isDir) continue;
+           if (rule.regex.test(name) || rule.regex.test(relPath)) {
+               return true;
+           }
+       }
+       return false;
+   }
+
+   function loadSavedSettings() {
+       const saved = localStorage.getItem('fractal_ignore_rules');
+       state.ignoreRulesText = (saved !== null) ? saved : DEFAULT_IGNORE_RULES;
+       state.parsedIgnoreRules = parseGitignoreRules(state.ignoreRulesText);
+   }
+
+   function openSettingsModal() {
+       document.getElementById('settings-ignore-input').value = state.ignoreRulesText;
+       document.getElementById('settings-modal').classList.remove('hidden');
+   }
+
+   function closeSettingsModal() {
+       document.getElementById('settings-modal').classList.add('hidden');
+   }
+
+    async function saveSettingsRules() {
+       const inputVal = document.getElementById('settings-ignore-input').value;
+       state.ignoreRulesText = inputVal;
+       state.parsedIgnoreRules = parseGitignoreRules(inputVal);
+        
+        if (ipcRenderer) {
+            await ipcRenderer.invoke('store:saveIgnoreRules', inputVal);
+        } else {
+       localStorage.setItem('fractal_ignore_rules', inputVal);
+        }
+
+       closeSettingsModal();
+
+       document.getElementById('status-text').textContent = '自動展開対象外ルールを更新しました';
+       renderScene();
+       setTimeout(() => updateStatusText(), 2500);
+   }
 
         function initCanvases() {
             canvas.width = window.innerWidth;
@@ -328,10 +529,13 @@
             node.height = height;
             node.depth = depth;
 
-            if (node.type === 'folder' && node.children.length > 0) {
+            const targetList = node.rawChildren || node.children;
+
+            if ((node.type === 'folder' || node.scannedArchive) && targetList && targetList.length > 0) {
+                node.children = [...targetList];
                 sortNodeChildren(node);
+
                 const headerH = height * (depth === 0 ? 0.08 : 0.13);
-                // Proportional padding without floor threshold to prevent layout overflow in deep nesting
                 const pad = Math.min(6, Math.max(0.0001, width * 0.008));
 
                 const contentX = x + pad;
@@ -379,7 +583,6 @@
                     }
                 }
 
-                // Fallback for deeply nested or tightly constrained panels
                 if (maxCellArea <= 0 || bestCellW <= 0 || bestCellH <= 0) {
                     bestCols = Math.ceil(Math.sqrt(count));
                     bestRows = Math.ceil(count / bestCols);
@@ -412,15 +615,6 @@
         async function triggerLazyFolderScan(node, forceReScan = false) {
             if ((node.scanned && !forceReScan) || node.isScanning) return;
 
-            // Do not expand contents of hidden folders
-            if (node.isHidden) {
-                node.scanned = true;
-                node.children = [];
-                node.isScanning = false;
-                renderScene();
-                return;
-            }
-
             node.isScanning = true;
             renderScene();
 
@@ -428,11 +622,11 @@
                 try {
                     const res = await ipcRenderer.invoke('fs:readDir', node.nativePath);
                     if (res.success && res.items) {
-                        node.children = [];
+                        node.rawChildren = [];
                         for (const item of res.items) {
                             const isHidden = item.isHidden || isItemHidden(item.name);
 
-                            node.children.push({
+                            node.rawChildren.push({
                                 id: 'node_' + Math.random().toString(36).substr(2, 9),
                                 name: item.name,
                                 nativePath: item.path,
@@ -440,6 +634,7 @@
                                 ext: item.ext,
                                 content: '',
                                 children: [],
+                                rawChildren: [],
                                 x: 0, y: 0, width: 1600, height: 900,
                                 depth: node.depth + 1,
                                 scanned: false,
@@ -468,19 +663,20 @@
                 }
             } else if (node.directoryHandle) {
                 try {
-                    node.children = [];
+                    node.rawChildren = [];
                     for await (const entry of node.directoryHandle.values()) {
                         const isDir = entry.kind === 'directory';
                         const ext = !isDir && entry.name.includes('.') ? entry.name.split('.').pop().toLowerCase() : '';
                         const isHidden = isItemHidden(entry.name);
 
-                        node.children.push({
+                        node.rawChildren.push({
                             id: 'node_' + Math.random().toString(36).substr(2, 9),
                             name: entry.name,
                             type: isDir ? 'folder' : 'file',
                             ext: ext,
                             content: '',
                             children: [],
+                            rawChildren: [],
                             x: 0, y: 0, width: 1600, height: 900,
                             depth: node.depth + 1,
                             scanned: false,
@@ -515,10 +711,130 @@
             }
         }
 
-        async function triggerLazyFileContentLoad(node) {
-            if (node.contentLoaded || node.isContentLoading) return;
+        async function triggerLazyArchiveScan(node) {
+            if (node.scannedArchive || node.isScanningArchive) return;
+            node.isScanningArchive = true;
+            renderScene();
 
-            // PREVENT AUTOMATIC CLOUD DOWNLOAD: Skip auto-load for online-only files unless manually triggered
+            try {
+                let entryList = [];
+
+                // 1. Native High-Speed ZIP Structure Scanner via Electron IPC (Bypasses 2GB limit)
+                if (ipcRenderer && node.nativePath && node.ext === 'zip') {
+                    const res = await ipcRenderer.invoke('fs:readZipStructure', node.nativePath);
+                    if (res.success && res.entries) {
+                        entryList = res.entries;
+                    } else if (res.error) {
+                        throw new Error(res.error);
+                    }
+                }
+
+                // 2. Web / JSZip Fallback Scanner
+                if (entryList.length === 0 && window.JSZip) {
+                    let arrayBuffer = null;
+                    if (typeof require !== 'undefined') {
+                        const fs = require('fs');
+                        if (node.nativePath && fs.existsSync(node.nativePath)) {
+                            const stats = await fs.promises.stat(node.nativePath);
+                            if (stats.size > 2 * 1024 * 1024 * 1024) {
+                                throw new Error('File exceeds 2GB limit for JSZip memory inspection.');
+                            }
+                            const buf = await fs.promises.readFile(node.nativePath);
+                            arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+                        }
+                    }
+                    if (!arrayBuffer && node.fileObj) {
+                        arrayBuffer = await node.fileObj.arrayBuffer();
+                    } else if (!arrayBuffer && node.fileHandle) {
+                        const file = await node.fileHandle.getFile();
+                        arrayBuffer = await file.arrayBuffer();
+                    }
+
+                    if (arrayBuffer) {
+                        const zip = await JSZip.loadAsync(arrayBuffer);
+                        entryList = Object.keys(zip.files).map(relPath => ({
+                            path: relPath,
+                            isDir: zip.files[relPath].dir
+                        }));
+                    }
+                }
+
+                if (entryList.length > 0) {
+                    node.rawChildren = [];
+                    const dirMap = { '': node };
+
+                    for (const item of entryList) {
+                        const parts = item.path.split('/').filter(Boolean);
+                        if (parts.length === 0) continue;
+
+                        let currentParent = node;
+                        let currentPath = '';
+
+                        for (let i = 0; i < parts.length; i++) {
+                            const part = parts[i];
+                            const isLast = (i === parts.length - 1);
+                            currentPath = currentPath ? (currentPath + '/' + part) : part;
+
+                            if (isLast && !item.isDir) {
+                                const ext = part.includes('.') ? part.split('.').pop().toLowerCase() : '';
+                                const fileNode = {
+                                    id: 'zip_file_' + Math.random().toString(36).substr(2, 9),
+                                    name: part,
+                                    type: 'file',
+                                    ext: ext,
+                                    content: '',
+                                    children: [],
+                                    rawChildren: [],
+                                    x: 0, y: 0, width: 1600, height: 900,
+                                    depth: currentParent.depth + 1,
+                                    inArchive: true, // Mark node as archive child (always Level 1)
+                                    parent: currentParent
+                                };
+                                if (!currentParent.rawChildren) currentParent.rawChildren = [];
+                                currentParent.rawChildren.push(fileNode);
+                            } else {
+                                if (!dirMap[currentPath]) {
+                                    const dirNode = {
+                                        id: 'zip_dir_' + Math.random().toString(36).substr(2, 9),
+                                        name: part,
+                                        type: 'folder',
+                                        ext: '',
+                                        children: [],
+                                        rawChildren: [],
+                                        x: 0, y: 0, width: 1600, height: 900,
+                                        depth: currentParent.depth + 1,
+                                        scanned: true,
+                                        isExpanded: false,
+                                        inArchive: true, // Mark node as archive child
+                                        parent: currentParent
+                                    };
+                                    if (!currentParent.rawChildren) currentParent.rawChildren = [];
+                                    currentParent.rawChildren.push(dirNode);
+                                    dirMap[currentPath] = dirNode;
+                                }
+                                currentParent = dirMap[currentPath];
+                            }
+                        }
+                    }
+
+                    node.scannedArchive = true;
+                    if (state.rootNode) {
+                        layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+                    }
+                }
+            } catch (e) {
+                console.error('Archive scan error:', e);
+                node.archiveError = e.message || true;
+            } finally {
+                node.isScanningArchive = false;
+                node.scannedArchive = true;
+                renderScene();
+                renderTreeView();
+            }
+        }
+
+        async function triggerLazyFileContentLoad(node) {
+            if (node.inArchive || node.contentLoaded || node.isContentLoading) return;
             if (node.isOnlineOnly && !node.isManualLoaded) return;
 
             node.isContentLoading = true;
@@ -547,25 +863,37 @@
         }
 
         async function triggerLazyPdfLoad(node) {
-            if (node.pdfDoc || node.isPdfLoading || !window.pdfjsLib) return;
-
-            // PREVENT AUTOMATIC CLOUD DOWNLOAD for PDF
+            if (node.inArchive || node.pdfDoc || node.isPdfLoading || !window.pdfjsLib) return;
             if (node.isOnlineOnly && !node.isManualLoaded) return;
 
             node.isPdfLoading = true;
             node.currentPage = node.currentPage || 1;
 
+            const pdfParams = {
+                cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                cMapPacked: true
+            };
+
             try {
                 let loadingTask = null;
                 if (ipcRenderer && node.nativePath) {
-                    loadingTask = pdfjsLib.getDocument('file://' + node.nativePath.replace(/\\/g, '/'));
+                    loadingTask = pdfjsLib.getDocument({
+                        url: formatFileUrl(node.nativePath),
+                        ...pdfParams
+                    });
                 } else if (node.fileHandle) {
                     const file = await node.fileHandle.getFile();
                     const buffer = await file.arrayBuffer();
-                    loadingTask = pdfjsLib.getDocument({ data: buffer });
+                    loadingTask = pdfjsLib.getDocument({
+                        data: buffer,
+                        ...pdfParams
+                    });
                 } else if (node.fileObj) {
                     const buffer = await node.fileObj.arrayBuffer();
-                    loadingTask = pdfjsLib.getDocument({ data: buffer });
+                    loadingTask = pdfjsLib.getDocument({
+                        data: buffer,
+                        ...pdfParams
+                    });
                 }
 
                 if (loadingTask) {
@@ -592,7 +920,8 @@
                 offCanvas.height = viewport.height;
                 const offCtx = offCanvas.getContext('2d');
                 await page.render({ canvasContext: offCtx, viewport: viewport }).promise;
-                node.pdfPageCanvas = offCanvas;
+
+                touchLruCache(node, 'pdfPageCanvas', offCanvas);
                 node.cachedPageNum = pageNum;
                 renderScene();
             } catch(e) {
@@ -600,7 +929,6 @@
             }
         }
 
-        // Helper: Trigger manual download/preview load for Online-Only Box Drive file
         function loadOnlinePreview(node) {
             if (!node) return;
             node.isManualLoaded = true;
@@ -613,13 +941,58 @@
             updateSidebarUI();
         }
 
+   // Refresh Workspace / Folder Action
+   async function refreshWorkspace(nodeToRefresh = null) {
+       const icon = document.getElementById('refresh-icon');
+       if (icon) icon.classList.add('animate-spin-once');
+
+       const target = nodeToRefresh || state.selectedNode;
+       let nodeToScan = null;
+
+       if (target) {
+           if (target.type === 'folder' || ARCHIVE_EXTS.includes(target.ext)) {
+               nodeToScan = target;
+           } else if (target.parent && target.parent.depth > 0) {
+               nodeToScan = target.parent;
+           }
+       }
+
+       document.getElementById('status-text').textContent = nodeToScan ? `Refreshing "${nodeToScan.name}"...` : 'Refreshing Workspace...';
+
+       if (nodeToScan && nodeToScan.depth > 0) {
+           nodeToScan.scanned = false;
+           nodeToScan.scannedArchive = false;
+           if (nodeToScan.type === 'folder') {
+               await triggerLazyFolderScan(nodeToScan, true);
+           } else if (ARCHIVE_EXTS.includes(nodeToScan.ext)) {
+               await triggerLazyArchiveScan(nodeToScan);
+           }
+       } else if (state.rootNode && state.rootNode.children) {
+           for (const rootChild of state.rootNode.children) {
+               rootChild.scanned = false;
+               rootChild.scannedArchive = false;
+               await triggerLazyFolderScan(rootChild, true);
+           }
+       }
+
+       if (state.rootNode) {
+           layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
+       }
+
+       renderScene();
+       updateSidebarUI();
+       updateStatusText();
+
+       setTimeout(() => {
+           if (icon) icon.classList.remove('animate-spin-once');
+       }, 600);
+   }
+
         function renderScene() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Reset active video flag each frame before traversing tree
             state.hasActiveVideoPlaying = false;
 
-            // Subtle Background Grid Lines
             ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
             ctx.lineWidth = 1;
             const gridSize = 80 * state.transform.scale;
@@ -637,12 +1010,10 @@
             }
             ctx.stroke();
 
-            // Render Nodes Recursively
             if (state.rootNode) {
                 renderNode(state.rootNode);
             }
 
-            // Continuous animation frame render if active videos are playing
             if (state.hasActiveVideoPlaying) {
                 requestAnimationFrame(renderScene);
             }
@@ -654,7 +1025,6 @@
             const screenW = node.width * state.transform.scale;
             const screenH = node.height * state.transform.scale;
 
-            // Frustum Culling (Skip nodes outside canvas & pause offscreen media)
             if (screenX + screenW < 0 || screenX > canvas.width ||
                 screenY + screenH < 0 || screenY > canvas.height) {
                 if (node.videoObj && !node.videoObj.paused) {
@@ -663,46 +1033,56 @@
                 return;
             }
 
-            // Depth 0 Workspace container skips rendering container borders
             if (node.depth === 0) {
-                for (let i = 0; i < node.children.length; i++) {
-                    renderNode(node.children[i]);
+                if (node.children) {
+                    for (let i = 0; i < node.children.length; i++) {
+                        renderNode(node.children[i]);
+                    }
                 }
                 return;
             }
 
-            // ON-DEMAND LAZY SCAN TRIGGER FOR FOLDERS (Only when zoomed in enough)
-            if (node.type === 'folder' && !node.scanned && !node.isScanning && screenW >= 140) {
-                triggerLazyFolderScan(node);
+            const isHovered = state.mouse.x >= screenX && state.mouse.x <= screenX + screenW &&
+                              state.mouse.y >= screenY && state.mouse.y <= screenY + screenH;
+            const isSelected = state.selectedNode === node;
+            const isArchive = ARCHIVE_EXTS.includes(node.ext);
+
+            const previewThresholdW = getPreviewThreshold(node);
+       const isIgnored = isIgnoredByRule(node);
+
+            // ON-DEMAND LAZY SCAN TRIGGER FOR FOLDERS
+            if (node.type === 'folder' && !node.scanned && !node.isScanning) {
+           if (isSelected) {
+               triggerLazyFolderScan(node);
+           } else if (!isIgnored) {
+                if (node.isHidden) {
+                    if (isSelected) triggerLazyFolderScan(node);
+                } else if (screenW >= 140) {
+                    triggerLazyFolderScan(node);
+                }
+            }
+       }
+
+            // ON-DEMAND ARCHIVE SCAN TRIGGER FOR ARCHIVES
+            if (isArchive && isSelected && !node.scannedArchive && !node.isScanningArchive) {
+                triggerLazyArchiveScan(node);
             }
 
             // ON-DEMAND FILE PREVIEW TRIGGER FOR FILES
-            if (node.type === 'file' && (!node.isOnlineOnly || node.isManualLoaded) && !node.contentLoaded && !node.isContentLoading && screenW >= 240) {
+       if (node.type === 'file' && !isArchive && !node.inArchive && (!node.isOnlineOnly || node.isManualLoaded) && !node.contentLoaded && !node.isContentLoading && screenW >= previewThresholdW && (!isIgnored || isSelected)) {
                 triggerLazyFileContentLoad(node);
             }
 
-            // Clip node rendering inside parent panel bounds
             ctx.save();
             ctx.beginPath();
             ctx.rect(screenX, screenY, screenW, screenH);
             ctx.clip();
 
-            const isHovered = state.mouse.x >= screenX && state.mouse.x <= screenX + screenW &&
-                              state.mouse.y >= screenY && state.mouse.y <= screenY + screenH;
-            const isSelected = state.selectedNode === node;
-
-            // -------------------------------------------------------------
-            // RULE: Hidden files and Archive files are ALWAYS Icon-only (Level 1)
-            // -------------------------------------------------------------
-            const isArchive = ARCHIVE_EXTS.includes(node.ext);
             const isOnlinePending = node.type === 'file' && node.isOnlineOnly && !node.isManualLoaded;
-            const isForceIconOnly = node.isHidden || isArchive;
-
-            // -------------------------------------------------------------
-            // LEVEL 1: Simplified Icon-Only Card (< 140px or forced icon mode)
-            // -------------------------------------------------------------
-            if (screenW < 140 || isForceIconOnly) {
-                // Clean up hardware-decoding video objects when zoomed out to Level 1
+            const isForceIconOnly = (node.type === 'file' && node.isHidden && !isSelected) || node.inArchive;
+    
+            // LEVEL 1: ICON-ONLY RENDER
+            if (screenW < previewThresholdW || isForceIconOnly) {
                 if (node.videoObj) {
                     node.videoObj.pause();
                     node.videoObj.removeAttribute('src');
@@ -710,7 +1090,7 @@
                     node.videoObj = null;
                 }
 
-                ctx.fillStyle = node.type === 'folder' ? '#1e293b' : '#0f172a';
+                ctx.fillStyle = (node.type === 'folder' || isArchive) ? '#1e293b' : '#0f172a';
                 ctx.fillRect(screenX, screenY, screenW, screenH);
 
                 ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#334155');
@@ -724,6 +1104,7 @@
                     
                     let icon = node.type === 'folder' ? '📁 ' : '📄 ';
                     if (node.isOnlineOnly && !node.isManualLoaded) icon = '☁️ ';
+               else if (isIgnored) icon = '🚫 ';
                     else if (node.isHidden) icon = '🔒 ';
                     else if (isArchive) icon = '📦 ';
 
@@ -734,18 +1115,16 @@
                 return;
             }
 
-            // -------------------------------------------------------------
-            // LEVEL 2 & LEVEL 3: Full Panel Frame (>= 140px)
-            // -------------------------------------------------------------
-            ctx.fillStyle = node.type === 'folder' ? '#0f172a' : '#090d16';
+            // LEVEL 2 & 3: DETAILED PREVIEW RENDER
+            ctx.fillStyle = (node.type === 'folder' || isArchive) ? '#0f172a' : '#090d16';
             ctx.fillRect(screenX, screenY, screenW, screenH);
 
             ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#1e293b');
             ctx.lineWidth = isSelected ? 3.5 : (isHovered ? 2 : 1);
             ctx.strokeRect(screenX, screenY, screenW, screenH);
 
-            const headerH = screenH * (node.type === 'folder' ? 0.13 : 0.18);
-            ctx.fillStyle = isSelected ? 'rgba(245, 158, 11, 0.2)' : (isHovered ? 'rgba(59, 130, 246, 0.15)' : (node.type === 'folder' ? '#1e293b' : '#0f172a'));
+            const headerH = screenH * ((node.type === 'folder' || isArchive) ? 0.13 : 0.18);
+            ctx.fillStyle = isSelected ? 'rgba(245, 158, 11, 0.2)' : (isHovered ? 'rgba(59, 130, 246, 0.15)' : ((node.type === 'folder' || isArchive) ? '#1e293b' : '#0f172a'));
             ctx.fillRect(screenX, screenY, screenW, headerH);
             
             ctx.beginPath();
@@ -754,7 +1133,6 @@
             ctx.strokeStyle = isSelected ? '#f59e0b' : (isHovered ? '#3b82f6' : '#334155');
             ctx.stroke();
 
-            // File / Folder Category Icons
             let iconChar = '📁 ';
             if (node.type === 'file') {
                 if (node.isOnlineOnly && !node.isManualLoaded) iconChar = '☁️ ';
@@ -764,57 +1142,73 @@
                 else if (VIDEO_EXTS.includes(node.ext)) iconChar = '🎬 ';
                 else if (AUDIO_EXTS.includes(node.ext)) iconChar = '🎵 ';
                 else if (DOC_EXTS.includes(node.ext)) iconChar = '📕 ';
+                else if (isArchive) iconChar = '📦 ';
                 else iconChar = '💾 ';
             }
 
             const headerFontSize = Math.max(10, Math.min(18, screenW * 0.032));
             ctx.font = `600 ${headerFontSize}px "Inter", sans-serif`;
-            ctx.fillStyle = isSelected ? '#fbbf24' : (isHovered ? '#60a5fa' : (node.type === 'folder' ? '#f8fafc' : '#cbd5e1'));
+            ctx.fillStyle = isSelected ? '#fbbf24' : (isHovered ? '#60a5fa' : ((node.type === 'folder' || isArchive) ? '#f8fafc' : '#cbd5e1'));
             ctx.fillText(iconChar + node.name, screenX + 10, screenY + headerH * 0.68);
 
-            // LOD Badge Indicator
             if (screenW > 180) {
                 let lodTag = screenW < 550 ? 'LOD 2: Preview' : 'LOD 3: Full';
                 if (isSelected) lodTag = 'SELECTED';
+           else if (isIgnored && !node.scanned) lodTag = 'Click to Expand (Rule)';
                 else if (isOnlinePending) lodTag = 'Online Only (Box)';
-                else if (node.isScanning || node.isContentLoading) lodTag = 'scanning';
-                else if (node.type === 'folder' && node.scanned && node.children.length === 0) lodTag = 'empty';
+                else if (node.isScanning || node.isScanningArchive || node.isContentLoading) lodTag = 'scanning';
+                else if (node.type === 'folder' && node.scanned && (!node.children || node.children.length === 0)) lodTag = 'empty';
                 else if (node.type === 'folder' && !node.scanned) lodTag = 'Zoom to Scan';
 
                 ctx.font = '10px "JetBrains Mono"';
-                ctx.fillStyle = isSelected ? '#fbbf24' : (isOnlinePending ? '#38bdf8' : ((node.isScanning || node.isContentLoading) ? '#38bdf8' : '#64748b'));
-                ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 130, screenY + headerH * 0.68);
+           ctx.fillStyle = isSelected ? '#fbbf24' : (isIgnored ? '#f43f5e' : (isOnlinePending ? '#38bdf8' : ((node.isScanning || node.isScanningArchive || node.isContentLoading) ? '#38bdf8' : '#64748b')));
+           ctx.fillText(`${lodTag} | 16:9`, screenX + screenW - 145, screenY + headerH * 0.68);
             }
 
-            // Render File Contents (LOD 2 & LOD 3 according to strict rules)
-            if (node.type === 'file') {
+            if (node.type === 'file' && !isArchive) {
                 if (isOnlinePending) {
                     renderOnlineOnlyPlaceholderCard(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
                 } else {
-                renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
-            }
+                    renderFlatFilePreview(node, ctx, screenX, screenY + headerH, screenW, screenH - headerH);
+                }
             }
 
-            // Render Subfolders & Folder Status Indicators (scanning / empty)
-            if (node.type === 'folder' && !node.isHidden) {
-                if (node.isScanning) {
+            if (node.type === 'folder' || isArchive) {
+                if (node.archiveError) {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.font = `${Math.max(10, Math.min(18, screenW * 0.028))}px "JetBrains Mono", monospace`;
+                    ctx.textAlign = 'center';
+                    const msg = typeof node.archiveError === 'string' ? node.archiveError : 'archive read error';
+                    ctx.fillText(`[${msg}]`, screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
+                    ctx.textAlign = 'left';
+                } else if (node.isScanning || node.isScanningArchive) {
                     ctx.fillStyle = '#38bdf8';
                     ctx.font = `${Math.max(11, Math.min(22, screenW * 0.035))}px "JetBrains Mono", monospace`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('scanning...', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
+                    ctx.fillText(isArchive ? 'extracting zip...' : 'scanning...', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
                     ctx.textAlign = 'left';
-                } else if (node.scanned && node.children.length === 0) {
+           } else if (isIgnored && !node.scanned) {
+               // IGNORED RULE PLACEHOLDER (ZOOM DOES NOT EXPAND AUTOMATICALY)
+               ctx.fillStyle = '#f43f5e';
+               ctx.font = `${Math.max(11, Math.min(18, screenW * 0.03))}px "JetBrains Mono", monospace`;
+               ctx.textAlign = 'center';
+               ctx.fillText('🚫 [自動展開対象外ルール]', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2 - 10);
+               ctx.font = `${Math.max(10, Math.min(14, screenW * 0.022))}px "Inter", sans-serif`;
+               ctx.fillStyle = '#94a3b8';
+               ctx.fillText('クリックして展開・読み込み', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2 + 14);
+               ctx.textAlign = 'left';
+                } else if ((node.scanned || node.scannedArchive) && (!node.children || node.children.length === 0)) {
                     ctx.fillStyle = '#64748b';
                     ctx.font = `${Math.max(11, Math.min(22, screenW * 0.035))}px "JetBrains Mono", monospace`;
                     ctx.textAlign = 'center';
                     ctx.fillText('empty', screenX + screenW / 2, screenY + headerH + (screenH - headerH) / 2);
                     ctx.textAlign = 'left';
-                } else if (node.children.length > 0) {
-                for (let i = 0; i < node.children.length; i++) {
-                    const child = node.children[i];
-                    const childScreenW = child.width * state.transform.scale;
-                    if (childScreenW >= 20) {
-                        renderNode(child);
+                } else if (node.children && node.children.length > 0) {
+                    for (let i = 0; i < node.children.length; i++) {
+                        const child = node.children[i];
+                        const childScreenW = child.width * state.transform.scale;
+                        if (childScreenW >= 20) {
+                            renderNode(child);
                         }
                     }
                 }
@@ -823,7 +1217,6 @@
             ctx.restore();
         }
 
-        // Render Online-Only Placeholder Card (Prevents Auto-Download)
         function renderOnlineOnlyPlaceholderCard(node, ctx, px, py, pw, ph) {
             ctx.fillStyle = '#090d16';
             ctx.fillRect(px, py, pw, ph);
@@ -864,10 +1257,6 @@
         function renderFlatFilePreview(node, ctx, px, py, pw, ph) {
             const isLevel3 = pw >= 550;
 
-            // -------------------------------------------------------------
-            // 1. Text & Code Files
-            // Level 2: ~10 line preview | Level 3: Full text fitted into panel
-            // -------------------------------------------------------------
             if (TEXT_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#0f172a';
                 ctx.fillRect(px, py, pw, ph);
@@ -881,12 +1270,10 @@
                     const padY = Math.max(6, ph * 0.015);
                     const availH = Math.max(1, ph - padY * 2);
 
-                    // Dynamically fit all lines into the panel height
                     let calcLineH = availH / totalLines;
                     let calcFontS = calcLineH * 0.82;
-
-                    // Cap maximum font size for short text files so text stays proportional
                     const maxFontS = Math.max(12, Math.min(28, pw * 0.025));
+
                     if (calcFontS > maxFontS) {
                         calcFontS = maxFontS;
                         calcLineH = calcFontS * 1.35;
@@ -903,49 +1290,44 @@
                 } else {
                     const displayLines = lines.slice(0, 10);
                     const fontSize = Math.max(9, Math.min(12, pw * 0.016));
-                const lineHeight = fontSize * 1.35;
-                
-                ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-                ctx.fillStyle = '#94a3b8';
+                    const lineHeight = fontSize * 1.35;
+                    
+                    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+                    ctx.fillStyle = '#94a3b8';
 
-                let currentY = py + lineHeight + 4;
-                for (let i = 0; i < displayLines.length; i++) {
-                    if (currentY > py + ph - 10) break;
-                    ctx.fillText(displayLines[i].substring(0, 140), px + 12, currentY);
-                    currentY += lineHeight;
-                }
+                    let currentY = py + lineHeight + 4;
+                    for (let i = 0; i < displayLines.length; i++) {
+                        if (currentY > py + ph - 10) break;
+                        ctx.fillText(displayLines[i].substring(0, 140), px + 12, currentY);
+                        currentY += lineHeight;
+                    }
 
                     if (lines.length > 10) {
-                    ctx.font = '500 11px "Inter", sans-serif';
-                    ctx.fillStyle = '#38bdf8';
-                    ctx.fillText(`... ${lines.length - 10} more lines (Zoom to Level 3 for full text)`, px + 12, py + ph - 10);
+                        ctx.font = '500 11px "Inter", sans-serif';
+                        ctx.fillStyle = '#38bdf8';
+                        ctx.fillText(`... ${lines.length - 10} more lines (Zoom to Level 3 for full text)`, px + 12, py + ph - 10);
                     }
                 }
-
-            // -------------------------------------------------------------
-            // 2. Image Files
-            // Level 2: Low-res / un-smoothed preview | Level 3: High quality
-            // -------------------------------------------------------------
             } else if (IMAGE_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#090d16';
                 ctx.fillRect(px, py, pw, ph);
 
-                if (!node.imgObj && node.nativePath) {
-                    node.imgObj = new Image();
-                    node.imgObj.src = 'file://' + node.nativePath;
-                    node.imgObj.onload = () => renderScene();
+                if (!node.imgObj) {
+                    if (node.nativePath) {
+                        const img = new Image();
+                        img.src = formatFileUrl(node.nativePath);
+                        img.onload = () => renderScene();
+                        touchLruCache(node, 'imgObj', img);
+                    }
                 }
 
                 if (node.imgObj && node.imgObj.complete && node.imgObj.naturalWidth > 0) {
                     ctx.save();
-                    ctx.imageSmoothingEnabled = isLevel3; // Off for LOD 2 fast render, ON for LOD 3 high-res
+                    ctx.imageSmoothingEnabled = isLevel3;
 
                     const imgRatio = node.imgObj.naturalWidth / node.imgObj.naturalHeight;
                     const panelRatio = pw / ph;
-                    let dw = pw;
-                    let dh = ph;
-                    let dx = px;
-                    let dy = py;
+                    let dw = pw, dh = ph, dx = px, dy = py;
 
                     if (imgRatio > panelRatio) {
                         dh = pw / imgRatio;
@@ -962,18 +1344,13 @@
                     ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
                     ctx.fillText(`[IMAGE PREVIEW] ${node.name}`, px + 12, py + ph / 2);
                 }
-
-            // -------------------------------------------------------------
-            // 3. Video Files
-            // Level 2: Still frame preview | Level 3: Live preview playback
-            // -------------------------------------------------------------
             } else if (VIDEO_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#020617';
                 ctx.fillRect(px, py, pw, ph);
 
                 if (!node.videoObj && node.nativePath) {
                     node.videoObj = document.createElement('video');
-                    node.videoObj.src = 'file://' + node.nativePath;
+                    node.videoObj.src = formatFileUrl(node.nativePath);
                     node.videoObj.muted = true;
                     node.videoObj.loop = true;
                     node.videoObj.onloadeddata = () => renderScene();
@@ -986,10 +1363,8 @@
                         ctx.drawImage(node.videoObj, px, py, pw, ph);
                     } else {
                         if (!node.videoObj.paused) node.videoObj.pause();
-                        // Render still frame for Level 2
                         ctx.drawImage(node.videoObj, px, py, pw, ph);
 
-                        // Overlay "STILL FRAME" indicator badge for Level 2
                         ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
                         ctx.fillRect(px + pw - 90, py + ph - 24, 80, 18);
                         ctx.fillStyle = '#38bdf8';
@@ -1006,19 +1381,13 @@
                     ctx.fillText(isLevel3 ? 'LOADING VIDEO...' : 'VIDEO STILL PREVIEW', px + pw / 2, py + ph / 2 + 20);
                     ctx.textAlign = 'left';
                 }
-
-            // -------------------------------------------------------------
-            // 4. Microsoft Office & Document Files (.docx, .xlsx, .pptx, .pdf)
-            // Level 2: Summary card / 1st page preview | Level 3: Detailed view & Page flip
-            // -------------------------------------------------------------
             } else if (node.ext === 'pdf') {
                 ctx.fillStyle = '#0f172a';
                 ctx.fillRect(px, py, pw, ph);
 
-                // Load PDF data on demand for both Level 2 and Level 3
-                    if (!node.pdfDoc && !node.isPdfLoading && !node.pdfError) {
-                        triggerLazyPdfLoad(node);
-                    }
+                if (!node.pdfDoc && !node.isPdfLoading && !node.pdfError) {
+                    triggerLazyPdfLoad(node);
+                }
 
                 if (node.pdfPageCanvas) {
                     const targetPage = isLevel3 ? (node.currentPage || 1) : 1;
@@ -1026,26 +1395,24 @@
                         renderPdfPageToCache(node, targetPage);
                     }
 
-                        const imgRatio = node.pdfPageCanvas.width / node.pdfPageCanvas.height;
-                        const panelRatio = pw / ph;
-                        let dw = pw, dh = ph, dx = px, dy = py;
+                    const imgRatio = node.pdfPageCanvas.width / node.pdfPageCanvas.height;
+                    const panelRatio = pw / ph;
+                    let dw = pw, dh = ph, dx = px, dy = py;
 
-                        if (imgRatio > panelRatio) {
-                            dh = pw / imgRatio;
-                            dy = py + (ph - dh) / 2;
-                        } else {
-                            dw = ph * imgRatio;
-                            dx = px + (pw - dw) / 2;
-                        }
+                    if (imgRatio > panelRatio) {
+                        dh = pw / imgRatio;
+                        dy = py + (ph - dh) / 2;
+                    } else {
+                        dw = ph * imgRatio;
+                        dx = px + (pw - dw) / 2;
+                    }
 
-                        ctx.save();
-                    // Level 2: Fast low-res rendering (smoothing off) | Level 3: High resolution (smoothing on)
+                    ctx.save();
                     ctx.imageSmoothingEnabled = isLevel3;
-                        ctx.drawImage(node.pdfPageCanvas, dx, dy, dw, dh);
-                        ctx.restore();
+                    ctx.drawImage(node.pdfPageCanvas, dx, dy, dw, dh);
+                    ctx.restore();
 
                     if (isLevel3) {
-                        // Interactive Page Control Overlay Badge for Level 3
                         ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
                         ctx.fillRect(px + pw / 2 - 110, py + ph - 28, 220, 22);
                         ctx.strokeStyle = '#38bdf8';
@@ -1056,19 +1423,18 @@
                         ctx.fillText(`Page ${node.currentPage || 1} / ${node.totalPages || 1} (Ctrl + Wheel)`, px + pw / 2, py + ph - 13);
                         ctx.textAlign = 'left';
                     } else {
-                        // Low-Res Preview Badge for Level 2
                         ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
                         ctx.fillRect(px + pw - 95, py + ph - 24, 85, 18);
                         ctx.fillStyle = '#38bdf8';
                         ctx.font = '10px "JetBrains Mono"';
                         ctx.fillText('PDF PREVIEW', px + pw - 89, py + ph - 12);
                     }
-                    } else if (node.isPdfLoading) {
-                        ctx.fillStyle = '#38bdf8';
+                } else if (node.isPdfLoading) {
+                    ctx.fillStyle = '#38bdf8';
                     ctx.font = `${Math.max(10, pw * 0.02)}px "JetBrains Mono"`;
-                        ctx.textAlign = 'center';
+                    ctx.textAlign = 'center';
                     ctx.fillText('LOADING PDF...', px + pw / 2, py + ph / 2);
-                        ctx.textAlign = 'left';
+                    ctx.textAlign = 'left';
                 } else {
                     const iconSize = Math.max(20, Math.min(54, pw * 0.1));
                     ctx.font = `${iconSize}px "Inter", sans-serif`;
@@ -1079,7 +1445,6 @@
                     ctx.fillText('PDF DOCUMENT (.PDF)', px + pw / 2, py + ph / 2 + 20);
                     ctx.textAlign = 'left';
                 }
-
             } else if (DOC_EXTS.includes(node.ext)) {
                 ctx.fillStyle = '#0f172a';
                 ctx.fillRect(px, py, pw, ph);
@@ -1092,7 +1457,6 @@
                 else if (['doc', 'docx'].includes(node.ext)) { docIcon = '📘'; docType = 'WORD DOCUMENT'; }
 
                 if (isLevel3) {
-                    // Level 3 Detailed Card Layout
                     ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
                     ctx.fillRect(px + 16, py + 16, pw - 32, ph - 32);
 
@@ -1110,7 +1474,6 @@
                     ctx.fillStyle = '#94a3b8';
                     ctx.fillText(`STATUS: Verified Document Container`, px + 40 + iconSize, py + 40 + titleSize * 2.8);
                 } else {
-                    // Level 2 Preview Card
                     ctx.font = `${iconSize}px "Inter", sans-serif`;
                     ctx.textAlign = 'center';
                     ctx.fillText(docIcon, px + pw / 2, py + ph / 2 - 10);
@@ -1119,14 +1482,26 @@
                     ctx.fillText(`${docType} (.${node.ext.toUpperCase()})`, px + pw / 2, py + ph / 2 + 20);
                     ctx.textAlign = 'left';
                 }
+            } else if (ARCHIVE_EXTS.includes(node.ext)) {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(px, py, pw, ph);
 
-            // -------------------------------------------------------------
-            // 5. Binary Executables & General Fallbacks
-            // -------------------------------------------------------------
+                const iconSize = Math.max(20, Math.min(54, pw * 0.1));
+                ctx.font = `${iconSize}px "Inter", sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('📦', px + pw / 2, py + ph / 2 - 10);
+
+                ctx.font = `600 ${Math.max(11, Math.min(16, pw * 0.024))}px "Inter", sans-serif`;
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillText(`ARCHIVE CONTAINER (.${node.ext.toUpperCase()})`, px + pw / 2, py + ph / 2 + 20);
+                
+                ctx.font = `${Math.max(9, Math.min(12, pw * 0.018))}px "Inter", sans-serif`;
+                ctx.fillStyle = '#94a3b8';
+                ctx.fillText('Compressed Archive File', px + pw / 2, py + ph / 2 + 38);
+                ctx.textAlign = 'left';
             } else {
                 ctx.fillStyle = '#090d16';
                 ctx.fillRect(px, py, pw, ph);
-
                 const iconSize = Math.max(20, Math.min(48, pw * 0.08));
                 ctx.font = `${iconSize}px "Inter", sans-serif`;
                 ctx.textAlign = 'center';
@@ -1151,6 +1526,7 @@
                 type: 'folder',
                 ext: '',
                 children: [],
+                rawChildren: [],
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
                 scanned: false,
@@ -1164,7 +1540,6 @@
             resetZoom();
 
             await triggerLazyFolderScan(rootItem);
-
             state.isLoadingFolder = false;
             updateStatusText();
 
@@ -1182,6 +1557,7 @@
                 type: 'folder',
                 ext: '',
                 children: [],
+                rawChildren: [],
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
                 scanned: false,
@@ -1200,29 +1576,34 @@
         }
 
         function saveWorkspaceState() {
-            if (!state.rootNode) return;
-            const nativePaths = state.rootNode.children
-                .filter(child => child.nativePath)
-                .map(child => child.nativePath);
-
-            if (ipcRenderer) {
-                ipcRenderer.invoke('store:saveRoots', nativePaths);
-            }
+            if (!state.rootNode || !ipcRenderer) return;
+            const nativePaths = state.rootNode.children.filter(c => c.nativePath).map(c => c.nativePath);
+            ipcRenderer.invoke('store:saveRoots', nativePaths);
         }
 
         async function restoreSavedWorkspace() {
             if (ipcRenderer) {
                 try {
-                    const res = await ipcRenderer.invoke('store:getRoots');
-                    if (res.success && res.paths && res.paths.length > 0) {
-                        for (const dirPath of res.paths) {
+                    const res = await ipcRenderer.invoke('store:getConfig');
+                    if (res.success && res.config) {
+                        if (res.config.ignoreRulesText !== undefined) {
+                            state.ignoreRulesText = res.config.ignoreRulesText;
+                            state.parsedIgnoreRules = parseGitignoreRules(state.ignoreRulesText);
+                        }
+                        if (Array.isArray(res.config.savedRoots)) {
+                            for (const dirPath of res.config.savedRoots) {
                             await appendNativePathToWorkspace(dirPath, false);
                         }
                     }
+                        return;
+            }
                 } catch(e) {
-                    console.error('Failed to restore roots:', e);
+                    console.error('Failed to load initial config via IPC:', e);
                 }
             }
+
+            // Fallback for Web browser environment
+            loadSavedSettings();
         }
 
         async function triggerFolderSelect() {
@@ -1234,9 +1615,7 @@
                             await appendNativePathToWorkspace(dirPath, true);
                         }
                     }
-                } catch(e) {
-                    console.error('Error invoking openDirectory:', e);
-                }
+                } catch(e) {}
             } else {
                 const input = document.getElementById('folder-input');
                 if (input) input.click();
@@ -1258,6 +1637,7 @@
                 type: 'folder',
                 ext: '',
                 children: [],
+                rawChildren: [],
                 x: 0, y: 0, width: 1600, height: 900,
                 depth: 1,
                 scanned: true,
@@ -1289,7 +1669,7 @@
 
                     for (let i = 0; i < pathParts.length - 1; i++) {
                         const dirName = pathParts[i];
-                        let existingDir = currentFolder.children.find(c => c.name === dirName && c.type === 'folder');
+                        let existingDir = (currentFolder.rawChildren || currentFolder.children).find(c => c.name === dirName && c.type === 'folder');
 
                         if (!existingDir) {
                             existingDir = {
@@ -1299,13 +1679,15 @@
                                 ext: '',
                                 content: '',
                                 children: [],
+                                rawChildren: [],
                                 x: 0, y: 0, width: 1600, height: 900,
                                 depth: currentFolder.depth + 1,
                                 isHidden: isItemHidden(dirName),
                                 isExpanded: false,
                                 parent: currentFolder
                             };
-                            currentFolder.children.push(existingDir);
+                            if (!currentFolder.rawChildren) currentFolder.rawChildren = [];
+                            currentFolder.rawChildren.push(existingDir);
                         }
                         currentFolder = existingDir;
                     }
@@ -1313,7 +1695,8 @@
                     const fileName = pathParts[pathParts.length - 1];
                     const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
 
-                    currentFolder.children.push({
+                    if (!currentFolder.rawChildren) currentFolder.rawChildren = [];
+                    currentFolder.rawChildren.push({
                         id: 'file_' + Math.random().toString(36).substr(2, 9),
                         name: fileName,
                         type: 'file',
@@ -1321,6 +1704,7 @@
                         content: '',
                         fileObj: file,
                         children: [],
+                        rawChildren: [],
                         x: 0, y: 0, width: 1600, height: 900,
                         depth: currentFolder.depth + 1,
                         isHidden: isItemHidden(fileName),
@@ -1342,7 +1726,6 @@
         }
 
         function setupInteractionEvents() {
-            // Mouse Wheel Zooming around cursor & Ctrl+Wheel Page / Scroll Handling
             canvas.addEventListener('wheel', (e) => {
                 e.preventDefault();
 
@@ -1365,7 +1748,6 @@
                     return;
                 }
 
-                // Normal Zooming without Ctrl
                 const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
                 const mouseX = e.clientX;
                 const mouseY = e.clientY;
@@ -1377,7 +1759,6 @@
                 renderScene();
             }, { passive: false });
 
-            // Mouse Down (Drag & Click Detection)
             canvas.addEventListener('mousedown', (e) => {
                 if (e.button === 0) {
                     state.isDragging = true;
@@ -1395,25 +1776,23 @@
                 if (state.isDragging) {
                     state.transform.x = e.clientX - state.dragStart.x;
                     state.transform.y = e.clientY - state.dragStart.y;
+                    renderScene();
                 }
-                renderScene();
             });
 
             window.addEventListener('mouseup', (e) => {
                 if (state.isDragging) {
                     const distMoved = Math.hypot(e.clientX - state.mouseDownPos.x, e.clientY - state.mouseDownPos.y);
-                    // Treat as click selection if mouse moved less than 5px during drag
                     if (distMoved < 5) {
                         const clickedNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
                         if (clickedNode && clickedNode.depth > 0) {
-                            selectNode(clickedNode);
+                            selectNode(clickedNode, false);
                         }
                     }
                 }
                 state.isDragging = false;
             });
 
-            // Context Menu Right Click
             canvas.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const clickedNode = findNodeAtPosition(state.rootNode, e.clientX, e.clientY);
@@ -1427,7 +1806,6 @@
                 }
             });
 
-            // Drag & Drop Folders
             window.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 document.getElementById('drop-overlay').classList.remove('opacity-0', 'pointer-events-none');
@@ -1461,39 +1839,54 @@
             });
         }
 
-        // Helper: Expand all parent folders leading up to the target node
         function expandAncestors(node) {
             let curr = node ? node.parent : null;
             while (curr) {
-                if (curr.type === 'folder') {
+                if (curr.type === 'folder' || ARCHIVE_EXTS.includes(curr.ext)) {
                     curr.isExpanded = true;
                 }
                 curr = curr.parent;
             }
         }
 
-        // Selection & Sidebar Updates
-        function selectNode(node) {
+        function selectNode(node, shouldZoom = false) {
+            if (!node) return;
+
             state.selectedNode = node;
             expandAncestors(node);
 
-            // Update Top Path Bar
-            if (node && node.isOnlineOnly && !node.isManualLoaded) {
+            if (node.type === 'folder' && !node.scanned) {
+                triggerLazyFolderScan(node, true);
+            } else if (ARCHIVE_EXTS.includes(node.ext) && !node.scannedArchive) {
+                triggerLazyArchiveScan(node);
+            }
+    
+       if (node.type === 'file' && (!node.isOnlineOnly || node.isManualLoaded) && !node.contentLoaded) {
+           triggerLazyFileContentLoad(node);
+       }
+
+            if (node.isOnlineOnly && !node.isManualLoaded) {
                 loadOnlinePreview(node);
             }
 
             const pathInput = document.getElementById('path-input');
             if (pathInput) {
-                pathInput.value = node ? (node.nativePath || node.name || '') : '';
+                pathInput.value = node.nativePath || node.name || '';
             }
 
             updateSidebarUI();
-            renderScene();
 
-            // Auto-scroll tree sidebar element into view
-            if (node) {
+            if (shouldZoom) {
+                zoomToNode(node);
+            } else {
+                renderScene();
+            }
+
+            const targetTreeNode = (node.type === 'file' && !ARCHIVE_EXTS.includes(node.ext) && node.parent) ? node.parent : node;
+    
+            if (targetTreeNode && (targetTreeNode.type === 'folder' || ARCHIVE_EXTS.includes(targetTreeNode.ext))) {
                 setTimeout(() => {
-                    const activeTreeEl = document.querySelector(`.tree-item[data-id="${node.id}"]`);
+                    const activeTreeEl = document.querySelector(`.tree-item[data-id="${targetTreeNode.id}"]`);
                     if (activeTreeEl) {
                         activeTreeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                     }
@@ -1502,10 +1895,11 @@
         }
 
         function updateSidebarUI() {
-            // Update Tree View
             renderTreeView();
+            updatePropertiesPanel();
+        }
 
-            // Update Properties Panel
+        function updatePropertiesPanel() {
             const propPanel = document.getElementById('properties-panel');
             const propBadge = document.getElementById('prop-type-badge');
             
@@ -1517,15 +1911,16 @@
             }
 
             const n = state.selectedNode;
-            const isDir = n.type === 'folder';
-            propBadge.textContent = isDir ? 'Folder' : (n.ext ? n.ext.toUpperCase() : 'File');
+            const isDir = n.type === 'folder' || ARCHIVE_EXTS.includes(n.ext);
+            propBadge.textContent = (n.type === 'folder') ? 'Folder' : (n.ext ? n.ext.toUpperCase() : 'File');
             propBadge.className = isDir 
                 ? 'px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-900/60 text-blue-300 border border-blue-700/50' 
                 : 'px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-900/60 text-emerald-300 border border-emerald-700/50';
 
             const fullPath = n.nativePath || n.name || 'Memory Node';
-            const childCount = isDir ? (n.children ? n.children.length : 0) : null;
+            const childCount = isDir ? (n.rawChildren ? n.rawChildren.length : (n.children ? n.children.length : 0)) : null;
             const isOnlinePending = n.type === 'file' && n.isOnlineOnly && !n.isManualLoaded;
+       const isIgnored = isIgnoredByRule(n);
             
             propPanel.innerHTML = `
                 <div class="space-y-2 font-mono text-[11px]">
@@ -1540,11 +1935,11 @@
                     <div class="grid grid-cols-2 gap-2 pt-1">
                         <div>
                             <span class="text-slate-500 block text-[10px] uppercase">Type</span>
-                            <span class="text-slate-200">${isDir ? 'Folder' : (n.ext || 'File')}</span>
+                            <span class="text-slate-200">${n.type === 'folder' ? 'Folder' : (n.ext || 'File')}</span>
                         </div>
                         <div>
-                            <span class="text-slate-500 block text-[10px] uppercase">Storage State</span>
-                            <span class="${n.isOnlineOnly ? 'text-sky-400' : 'text-slate-300'}">${n.isOnlineOnly ? '☁️ Box Cloud' : '💾 Local Disk'}</span>
+                       <span class="text-slate-500 block text-[10px] uppercase">Auto-Expand Rule</span>
+                       <span class="${isIgnored ? 'text-rose-400 font-semibold' : 'text-emerald-400'}">${isIgnored ? '🚫 Paused (Rule)' : '⚡ Auto-Expand'}</span>
                         </div>
                     </div>
                     ${isDir ? `
@@ -1555,14 +1950,14 @@
                         </div>
                         <div>
                             <span class="text-slate-500 block text-[10px] uppercase">Status</span>
-                            <span class="${n.scanned ? 'text-emerald-400' : 'text-amber-400'}">${n.scanned ? 'Scanned' : 'Unscanned'}</span>
+                            <span class="${n.scanned || n.scannedArchive ? 'text-emerald-400' : 'text-amber-400'}">${n.scanned || n.scannedArchive ? 'Scanned' : 'Unscanned'}</span>
                         </div>
                     </div>
                     ` : `
                     <div>
                         <span class="text-slate-500 block text-[10px] uppercase">Content Status</span>
                         <span class="${n.contentLoaded || n.isManualLoaded ? 'text-emerald-400' : (isOnlinePending ? 'text-sky-400' : 'text-slate-400')}">
-                            ${n.contentLoaded || n.isManualLoaded ? 'Loaded' : (isOnlinePending ? '☁️ Online Only (Not Downloaded)' : 'Unloaded')}
+                       ${n.contentLoaded || n.isManualLoaded ? 'Loaded' : (isOnlinePending ? '☁️ Online Only' : 'Unloaded')}
                         </span>
                     </div>
                     `}
@@ -1573,20 +1968,22 @@
                         </button>
                     </div>
                     ` : ''}
-                    <div class="pt-1">
-                        <button onclick="zoomToNode(state.selectedNode)" class="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-sans text-xs font-medium transition-all shadow">
-                            🎯 Center & Zoom View
+               <div class="pt-1 flex space-x-1.5">
+                   <button onclick="refreshWorkspace(state.selectedNode)" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded font-sans text-xs font-medium transition-all shadow">
+                       🔄 再読み込み
+                   </button>
+                   <button onclick="zoomToNode(state.selectedNode)" class="flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded font-sans text-xs font-medium transition-all shadow">
+                       🎯 Center View
                         </button>
                     </div>
                 </div>
             `;
         }
 
-        // Toggle Expand / Collapse Tree Folder Node
         function toggleTreeExpand(nodeId, event) {
             if (event) event.stopPropagation();
             const node = findNodeById(state.rootNode, nodeId);
-            if (node && node.type === 'folder') {
+            if (node && (node.type === 'folder' || ARCHIVE_EXTS.includes(node.ext))) {
                 node.isExpanded = !node.isExpanded;
                 renderTreeView();
             }
@@ -1598,28 +1995,29 @@
             
             if (!state.rootNode || !state.rootNode.children || state.rootNode.children.length === 0) {
                 container.innerHTML = '<div class="text-slate-500 italic p-2 text-center text-[11px]">No items in workspace</div>';
-                countLabel.textContent = '0 items';
+                countLabel.textContent = '0 folders';
                 return;
             }
 
             let html = '';
-            let totalCount = 0;
+            let folderCount = 0;
 
+            const activeFolderNode = (state.selectedNode && state.selectedNode.type === 'file' && !ARCHIVE_EXTS.includes(state.selectedNode.ext))
+                ? state.selectedNode.parent
+                : state.selectedNode;
+    
             function buildTreeHTML(node, indent = 0) {
-                if (node.depth > 0) {
-                    totalCount++;
-                    const isSelected = state.selectedNode === node;
-                    const isDir = node.type === 'folder';
+                const isDirLike = node.type === 'folder' || ARCHIVE_EXTS.includes(node.ext);
+
+                if (node.depth > 0 && isDirLike) {
+                    folderCount++;
+                    const isSelected = activeFolderNode === node;
                     const indentPx = indent * 12;
 
-                    let arrowHtml = '<span class="w-3 text-center inline-block"></span>';
-                    if (isDir) {
-                        const arrowChar = node.isExpanded ? '▼' : '▶';
-                        arrowHtml = `<span onclick="toggleTreeExpand('${node.id}', event)" class="w-3 text-center inline-block cursor-pointer text-slate-400 hover:text-blue-400 text-[9px] select-none">${arrowChar}</span>`;
-                    }
-
-                    let icon = isDir ? (node.scanned ? '📁' : '📂') : '📄';
-                    if (node.isOnlineOnly && !node.isManualLoaded) icon = '☁️';
+                    const arrowChar = node.isExpanded ? '▼' : '▶';
+                    const arrowHtml = `<span onclick="toggleTreeExpand('${node.id}', event)" class="w-3 text-center inline-block cursor-pointer text-slate-400 hover:text-blue-400 text-[9px] select-none">${arrowChar}</span>`;
+               const isIgnored = isIgnoredByRule(node);
+               const icon = isIgnored ? '🚫' : (ARCHIVE_EXTS.includes(node.ext) ? '📦' : (node.scanned ? '📁' : '📂'));
 
                     html += `
                         <div data-id="${node.id}" onclick="event.stopPropagation(); selectNodeById('${node.id}')" 
@@ -1632,33 +2030,35 @@
                     `;
                 }
 
-                if (node.children && node.children.length > 0) {
-                    // Only render sub-children if the current folder node is expanded or is workspace root (depth 0)
+                const kids = node.rawChildren || node.children;
+                if (kids && kids.length > 0) {
                     if (node.depth === 0 || node.isExpanded) {
-                    for (const child of node.children) {
-                        buildTreeHTML(child, indent + (node.depth > 0 ? 1 : 0));
+                        for (const child of kids) {
+                            if (child.type === 'folder' || ARCHIVE_EXTS.includes(child.ext)) {
+                                buildTreeHTML(child, indent + (node.depth > 0 ? 1 : 0));
+                            }
+                        }
                     }
                 }
-            }
             }
 
             buildTreeHTML(state.rootNode, 0);
             container.innerHTML = html;
-            countLabel.textContent = `${totalCount} items`;
+            countLabel.textContent = `${folderCount} folder(s)`;
         }
 
         function selectNodeById(id) {
             const found = findNodeById(state.rootNode, id);
             if (found) {
-                selectNode(found);
-                zoomToNode(found);
+                selectNode(found, true);
             }
         }
 
         function findNodeById(node, id) {
             if (node.id === id) return node;
-            if (node.children) {
-                for (const child of node.children) {
+            const kids = node.rawChildren || node.children;
+            if (kids) {
+                for (const child of kids) {
                     const res = findNodeById(child, id);
                     if (res) return res;
                 }
@@ -1674,8 +2074,7 @@
             const target = findNodeByPathOrName(state.rootNode, query);
 
             if (target) {
-                selectNode(target);
-                zoomToNode(target);
+                selectNode(target, true);
             } else {
                 document.getElementById('status-text').textContent = `Target not found: "${input.value}"`;
                 setTimeout(() => updateStatusText(), 3000);
@@ -1693,8 +2092,9 @@
                 }
             }
 
-            if (node.children) {
-                for (const child of node.children) {
+            const kids = node.rawChildren || node.children;
+            if (kids) {
+                for (const child of kids) {
                     const found = findNodeByPathOrName(child, query);
                     if (found) return found;
                 }
@@ -1704,7 +2104,6 @@
 
         function zoomToNode(node) {
             if (!node) return;
-            // Calculate scale to make node take ~50% of screen height
             const targetScale = (canvas.height * 0.5) / node.height;
             const targetX = canvas.width / 2 - (node.x + node.width / 2) * targetScale;
             const targetY = canvas.height / 2 - (node.y + node.height / 2) * targetScale;
@@ -1734,13 +2133,12 @@
             return null;
         }
 
-        // --- Windows 11 Right-Click Context Menu Logic ---
         function showContextMenu(x, y, node) {
             const menu = document.getElementById('context-menu');
             const nameEl = document.getElementById('ctx-item-name');
             const rootGroupEl = document.getElementById('ctx-root-delete-group');
             const pasteBtn = document.getElementById('ctx-btn-paste');
-    
+
             nameEl.textContent = node ? node.name : 'Workspace Background';
             
             if (node && node.depth === 1) {
@@ -1748,19 +2146,18 @@
             } else {
                 rootGroupEl.classList.add('hidden');
             }
-    
+
             if (state.clipboard) {
                 pasteBtn.removeAttribute('disabled');
             } else {
                 pasteBtn.setAttribute('disabled', 'true');
             }
-    
-            // Boundary positioning
+
             const menuW = 256;
-            const menuH = 340;
+       const menuH = 370;
             const posX = Math.min(x, window.innerWidth - menuW - 10);
             const posY = Math.min(y, window.innerHeight - menuH - 10);
-    
+
             menu.style.left = `${posX}px`;
             menu.style.top = `${posY}px`;
             menu.classList.remove('hidden');
@@ -1769,8 +2166,12 @@
         function hideContextMenu() {
             document.getElementById('context-menu').classList.add('hidden');
         }
-    
-        // Context Menu Action 1: Open with Default Associated App
+
+   function ctxRefreshItem() {
+       hideContextMenu();
+       refreshWorkspace(state.selectedNode);
+   }
+
         async function ctxOpenDefaultApp() {
             hideContextMenu();
             const node = state.selectedNode;
@@ -1781,8 +2182,7 @@
                 }
             }
         }
-    
-        // Context Menu Action 2: Open / Show item in Windows Explorer
+
         async function ctxShowInExplorer() {
             hideContextMenu();
             const node = state.selectedNode;
@@ -1790,8 +2190,7 @@
                 await ipcRenderer.invoke('shell:showItemInFolder', node.nativePath);
             }
         }
-    
-        // Context Menu Action 3: Cut Item
+
         function ctxCutItem() {
             hideContextMenu();
             if (state.selectedNode) {
@@ -1799,8 +2198,7 @@
                 document.getElementById('status-text').textContent = `Cut: "${state.selectedNode.name}"`;
             }
         }
-    
-        // Context Menu Action 4: Copy Item
+
         function ctxCopyItem() {
             hideContextMenu();
             if (state.selectedNode) {
@@ -1808,31 +2206,30 @@
                 document.getElementById('status-text').textContent = `Copied: "${state.selectedNode.name}"`;
             }
         }
-    
-        // Context Menu Action 5: Paste Item
+
         async function ctxPasteItem() {
             hideContextMenu();
             if (!state.clipboard || !state.clipboard.node || !ipcRenderer) return;
-    
+
             const srcNode = state.clipboard.node;
             let destNode = state.selectedNode;
-    
+
             if (!destNode || destNode.type !== 'folder') {
                 destNode = srcNode.parent || state.rootNode;
             }
-    
+
             if (!destNode || !destNode.nativePath) return;
-    
+
             const destPath = destNode.nativePath + '/' + srcNode.name;
             const action = state.clipboard.action;
-    
+
             document.getElementById('status-text').textContent = `Pasting to "${destNode.name}"...`;
-    
+
             if (action === 'cut') {
                 const res = await ipcRenderer.invoke('fs:moveItem', { srcPath: srcNode.nativePath, destPath });
                 if (res.success) {
-                    if (srcNode.parent && srcNode.parent.children) {
-                        srcNode.parent.children = srcNode.parent.children.filter(c => c.id !== srcNode.id);
+                    if (srcNode.parent && srcNode.parent.rawChildren) {
+                        srcNode.parent.rawChildren = srcNode.parent.rawChildren.filter(c => c.id !== srcNode.id);
                     }
                     state.clipboard = null;
                 } else {
@@ -1844,26 +2241,25 @@
                     alert('コピーエラー: ' + res.error);
                 }
             }
-    
+
             await triggerLazyFolderScan(destNode, true);
             layoutNodeHierarchy(state.rootNode, 0, 0, 1600, 900, 0);
             renderScene();
             renderTreeView();
             updateStatusText();
         }
-    
-        // Context Menu Action 6: New File / Folder Prompts
+
         function ctxPromptNewItem(type) {
             hideContextMenu();
             const targetFolder = (state.selectedNode && state.selectedNode.type === 'folder') 
                 ? state.selectedNode 
                 : ((state.selectedNode && state.selectedNode.parent) ? state.selectedNode.parent : state.rootNode.children[0]);
-    
+
             if (!targetFolder || !targetFolder.nativePath) {
                 alert('作成先のフォルダが選択されていません。');
                 return;
             }
-    
+
             openActionModal(
                 type === 'file' ? '新規ファイルの作成' : '新規フォルダの作成',
                 `作成先: ${targetFolder.nativePath}`,
@@ -1874,7 +2270,7 @@
                     const payload = type === 'file' 
                         ? { parentDir: targetFolder.nativePath, fileName: val.trim() }
                         : { parentDir: targetFolder.nativePath, folderName: val.trim() };
-    
+
                     const res = await ipcRenderer.invoke(channel, payload);
                     if (res.success) {
                         await triggerLazyFolderScan(targetFolder, true);
@@ -1887,13 +2283,12 @@
                 }
             );
         }
-    
-        // Context Menu Action 7: Rename Item
+
         function ctxPromptRename() {
             hideContextMenu();
             const node = state.selectedNode;
             if (!node || !node.nativePath || !ipcRenderer) return;
-    
+
             openActionModal(
                 '名前の変更',
                 `新しい名称を入力してください (${node.name}):`,
@@ -1903,7 +2298,7 @@
                     const parts = node.nativePath.replace(/\\/g, '/').split('/');
                     parts.pop();
                     const newPath = parts.join('/') + '/' + newName.trim();
-    
+
                     const res = await ipcRenderer.invoke('fs:rename', { oldPath: node.nativePath, newPath });
                     if (res.success) {
                         node.name = newName.trim();
@@ -1924,18 +2319,17 @@
                 }
             );
         }
-    
-        // Context Menu Action 8: Delete Item (To Trash)
+
         function ctxDeleteItem() {
             hideContextMenu();
             const node = state.selectedNode;
             if (!node || !node.nativePath || !ipcRenderer) return;
-    
+
             if (confirm(`"${node.name}" をゴミ箱に移動しますか？`)) {
                 ipcRenderer.invoke('fs:delete', node.nativePath).then(res => {
                     if (res.success) {
-                        if (node.parent && node.parent.children) {
-                            node.parent.children = node.parent.children.filter(c => c.id !== node.id);
+                        if (node.parent && node.parent.rawChildren) {
+                            node.parent.rawChildren = node.parent.rawChildren.filter(c => c.id !== node.id);
                         } else if (node.depth === 1) {
                             state.rootNode.children = state.rootNode.children.filter(c => c.id !== node.id);
                         }
@@ -1950,8 +2344,7 @@
                 });
             }
         }
-    
-        // Context Menu Action 9: Copy Full Path
+
         function ctxCopyFullPath() {
             hideContextMenu();
             const node = state.selectedNode;
@@ -1961,8 +2354,7 @@
                 setTimeout(() => updateStatusText(), 2000);
             }
         }
-    
-        // Context Menu Action 10: Copy File Name
+
         function ctxCopyFileName() {
             hideContextMenu();
             const node = state.selectedNode;
@@ -1972,8 +2364,7 @@
                 setTimeout(() => updateStatusText(), 2000);
             }
         }
-    
-        // Operation Modal Handler
+
         function openActionModal(title, desc, defaultVal, callback) {
             document.getElementById('modal-title').textContent = title;
             document.getElementById('modal-desc').textContent = desc;
@@ -1983,12 +2374,12 @@
             document.getElementById('action-modal').classList.remove('hidden');
             setTimeout(() => { input.focus(); input.select(); }, 50);
         }
-    
+
         function closeActionModal() {
             document.getElementById('action-modal').classList.add('hidden');
             state.activeModalCallback = null;
         }
-    
+
         function submitActionModal() {
             const val = document.getElementById('modal-input').value;
             const cb = state.activeModalCallback;
@@ -2029,6 +2420,7 @@
         // App Entry Point
         window.onload = async function() {
             initCanvases();
+       loadSavedSettings();
             state.rootNode = createEmptyWorkspace();
             resetZoom();
             setupInteractionEvents();
